@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17-alpine
@@ -20,20 +20,20 @@ jobs:
           POSTGRES_PASSWORD: ci-test-only
           POSTGRES_DB: saldo
         ports: ['5432:5432']
-        options: --health-cmd 'pg_isready -U saldo' --health-interval 3s --health-timeout 3s --health-retries 20
+        options: --health-cmd pg_isready --health-interval 3s --health-timeout 3s --health-retries 20
     env:
       DATABASE_URL: postgresql://saldo:ci-test-only@localhost:5432/saldo
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: '3.12'
       - run: pip install -r requirements.lock
       - run: pytest -q
   container:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Construir aplicación y comprobar compilación TypeScript
         run: docker build --build-arg BUILD_SHA=${{ github.sha }} -t saldo:ci .
       - name: Probar arranque del contenedor con PostgreSQL
@@ -50,11 +50,11 @@ jobs:
   deploy:
     needs: [backend, container]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.backend.result == 'success' && needs.container.result == 'success' && vars.DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: academic-free
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: '3.12'
       - run: pip install -r requirements.lock
