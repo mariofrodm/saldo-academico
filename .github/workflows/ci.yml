@@ -65,9 +65,13 @@ jobs:
         run: |
           python - <<'PY'
           import os, httpx
-          response=httpx.post(os.environ['DEPLOY_HOOK'],params={'ref':os.environ['EXPECTED_SHA']},timeout=30)
+          url=httpx.URL(os.environ['DEPLOY_HOOK']).copy_merge_params({'ref':os.environ['EXPECTED_SHA']})
+          try:
+              response=httpx.post(url,timeout=30)
+          except httpx.HTTPError:
+              raise SystemExit('No se pudo contactar Render; la URL privada no se imprime.') from None
           if response.status_code not in (200,202):
-              raise SystemExit('Render no aceptó el despliegue; revisar el servicio sin imprimir el hook.')
+              raise SystemExit(f'Render no aceptó el despliegue (HTTP {response.status_code}); revisar el servicio sin imprimir el hook.')
           print('Despliegue solicitado; falta comprobar disponibilidad del SHA.')
           PY
       - name: Confirmar versión y persistencia accesibles
