@@ -29,3 +29,21 @@ Consultar `docs/estado.md` para distinguir verificaciones terminadas y pendiente
 Render y Neon usan Free; nunca añadir métodos de pago para este proyecto.
 Render puede tardar al despertar tras inactividad. Las credenciales de prueba
 se entregan localmente, fuera del repositorio público.
+
+## Entrega y demostración
+
+- [Informe técnico y evidencias (PDF)](output/pdf/Informe_Saldo_Academico.pdf).
+- [Informe completo Power BI (PBIX)](powerbi/Saldo_Consultas_y_Consumo.pbix).
+- [Colección Postman](docs/postman.json), con URL HTTPS publicada; establecer
+  la contraseña localmente. Para localhost cambiar la variable `base_url`.
+- [Portabilidad Ubuntu/Windows y recuperación](docs/portabilidad.md).
+- [Operación y cuotas gratuitas](docs/operacion.md).
+
+El PBIX se creó, actualizó y descargó desde Power BI web en Ubuntu. Se leyó su
+modelo localmente: 5 solicitudes, 15 llamadas y 9.716 tokens al corte de entrega.
+Los filtros por fecha y servicio coinciden con la web. Abrirlo en Power BI
+Desktop requiere Windows y una versión actual; ese ensayo no se ejecutó.
+
+La consulta `powerbi/consumo.pq` importa noviembre de 2026. Cambiar FechaDesde y
+FechaHasta para otros períodos; las credenciales Basic se configuran fuera de M.
+El PDF es una evidencia fechada, no un monitor de los consumos posteriores.

@@ -1,39 +1,57 @@
-# Estado verificable — 2 de noviembre de 2026
+# Estado verificable - 2 de noviembre de 2026
 
-## Completado y comprobado
+## Implementado y comprobado
 
-- Alcance académico acotado y matriz de cumplimiento; PRD original conservado.
-- Aplicación React/TypeScript y FastAPI construida y ejecutada en Docker Ubuntu.
-- Autenticación, roles, aislamiento, CRUD del dominio/administración, pagos parciales,
-  ahorro, recurrentes idempotentes, corpus RAG, historial y reporte de consumo.
-- 27 pruebas automatizadas aprobadas contra PostgreSQL 17 aislado.
-- Una advertencia de deprecación Starlette/httpx en el cliente de pruebas; no afecta
-  resultados. No se ejecutan llamadas de pago o a Groq durante la suite.
-- Fuentes reales Banco Mundial y Banguat accesibles desde backend.
-- Neon Free, Virginia, PostgreSQL 18; conexión directa/agrupada con TLS verify-full
-  verificadas en cliente libpq; migraciones y seed ficticio cargados.
-- Groq Free, clave propia del proyecto autorizada y guardada fuera de Git, vence
-  02/12/2026. Los tres servicios probados con Groq real y fuentes.
-- Agente de metas: consulta de meta, Banguat y dos simulaciones; cinco llamadas
-  con respuesta final, todas contabilizadas. Límite configurable de hasta seis.
-- Repositorio público creado con confirmación del usuario. GitHub CLI amplio
-  cancelado; clave SSH exclusiva del repositorio confirmada y probada.
-- Workflow CI/CD escrito: tests + contenedor antes de deploy por SHA.
-- Código publicado en mariofrodm/saldo-academico. GitHub Actions ejecutó tests
-  y arranque del contenedor satisfactoriamente (run 41421455428, commit 99ca66c).
-- Primer Render Free publicado: https://saldo-academico.onrender.com;
-  health HTTPS confirma el commit 99ca66c y acceso a Neon.
-- Hook privado de Render guardado como secreto de Actions; APP_URL y
-  DEPLOY_ENABLED configurados. Falta comprobar el ciclo completo automático.
-- Colección Postman y consulta Power Query paginada sin credenciales preparadas.
+- React/TypeScript + FastAPI en Docker Ubuntu; moneda operativa GTQ.
+- Autenticación, roles, aislamiento, administración, categorías, compromisos,
+  pagos parciales, ahorro, recurrentes idempotentes, corpus RAG e historial.
+- 27 pruebas automatizadas contra PostgreSQL 17 aislado. Groq y fuentes
+  públicas simuladas en CI; una advertencia de deprecación no bloqueante.
+- Neon Free Virginia, PostgreSQL 18.6, conexiones directa/agrupada con TLS
+  verificado en cliente libpq. Migraciones 0001-0003 y datos ficticios cargados.
+- Groq Free: los tres servicios probados con llamadas reales desde Render.
+  RAG con fuente propia; presupuesto con movimientos e inflación histórica
+  2025; metas con Banguat y dos simulaciones calculadas por herramientas.
+- Resultados faltantes se explican: la inflación anual 2026 no publicada y una
+  meta inexistente no se inventaron. Esas consultas siguen contabilizadas.
+- API HTTPS pública con autenticación, Swagger y colección Postman.
+- CI/CD completo exitoso: backend, contenedor y deploy, ejecución
+  [41423307877](https://github.com/mariofrodm/saldo-academico/actions/runs/41423307877),
+  commit verificado `0c5d2f7b0df16b643fc070056fd57563e0b2bedf`.
+  El workflow conserva el secreto del hook y fija el SHA probado. Render
+  auto-deploy está Off; Actions publica después de aprobar ambos jobs.
+- Aplicación: https://saldo-academico.onrender.com. Login, cookies Secure,
+  acceso BI de solo lectura y datos conservados tras redeploy comprobados.
+- Power BI conectado a la API definitiva con Basic guardado en Microsoft,
+  paginación y corte fijo por actualización, sin gateway local.
+  Actualización a petición completada 02/11/2026 09:51:24, Guatemala.
+- Web/API/Power BI/PBIX coinciden: 5 solicitudes, 15 llamadas, 8.445 tokens
+  de entrada + 1.271 de salida = 9.716. Filtro presupuesto: 2/6/3.669.
+- PBIX completo en `powerbi/Saldo_Consultas_y_Consumo.pbix`: ZIP íntegro,
+  modelo importado y consulta M decodificados desde Ubuntu con PBIXRay.
+  Cinco IDs únicos; filtros de fecha/servicio y agregaciones verificados.
+  Ningún secreto local encontrado en ZIP ni modelo ABF descomprimido.
+- Respaldo/restauración local comprobados: 16 tablas de dominio más Alembic,
+  19 claves foráneas y 57 restricciones iguales. Base original conservada.
+- Clon público sin credenciales comprobado; instrucciones en portabilidad.md.
+- PDF técnico de arquitectura, modelo y evidencias en
+  `output/pdf/Informe_Saldo_Academico.pdf`.
 
-## No dar por terminado todavía
+## Límites y preparación de la defensa
 
-- Comprobar el ciclo completo de CI/CD desde un nuevo commit.
-- Comprobar UI/API publicadas, persistencia tras redeploy y uso externo.
-- Conectar Power BI a la API definitiva, contrastar totales y descargar PBIX final.
-- Completar PDF de evidencias y ensayo de entrega.
+- Todo se realizó desde Ubuntu. No se ejecutó Power BI Desktop en Windows;
+  abrir/actualizar allí sigue siendo una comprobación opcional en una versión
+  actual compatible con el PBIX descargado, sin migrar servicios.
+- Power BI/Fabric mostraba 17 días restantes de prueba al verificar. No asumir
+  que los permisos/licencias o las cuotas Free sean indefinidos.
+- Render puede dormir por inactividad y Neon tiene cuotas y suspensión.
+  Abrir antes de la defensa; no usar pings artificiales ni activar pagos.
+- Groq tiene cuotas finitas; la clave del proyecto vence el 02/12/2026.
+  La cuenta demo conserva 10.284 tokens del límite interno de 20.000 al corte.
+- La suite no equivale a una auditoría de seguridad ni a pruebas de alta carga.
+  Ensayar la exposición y preparar credenciales locales para el docente.
 
-Las pruebas previas de Power BI están en ../pruebas/powerbi; no sustituyen el PBIX
-conectado al proyecto. Los resultados locales detallados están excluidos de Git
-para no publicar sesiones, trazas operativas o datos potencialmente sensibles.
+Los resultados detallados, capturas y respaldos están en evidencias-locales,
+excluidos de Git. El PDF/PBIX de entrega solo contiene datos ficticios.
+La evidencia refleja los commits indicados; cambios documentales posteriores
+pueden producir un nuevo SHA de despliegue sin alterar la implementación.

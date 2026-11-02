@@ -21,7 +21,7 @@ Groq solo en backend; clave con vencimiento el 02/12/2026. No añadir métodos d
 pago ni sustituir Free por Developer. No subir estos archivos como entregables.
 
 GitHub CLI no se renovó: la revisión automática rechazó sus permisos amplios.
-La alternativa propuesta/confirmada es una clave SSH por repositorio, guardada
+La alternativa confirmada y operativa es una clave SSH por repositorio, guardada
 en `.local-secrets`, sin cambiar el acceso a otros repositorios o a la cuenta.
 Verificar el estado final en `estado.md`. La clave de publicación debe retirarse
 desde Settings → Deploy keys cuando termine el trabajo académico. No expira sola.
@@ -36,7 +36,7 @@ no se necesitan en Render: la base conserva exclusivamente sus hashes.
 La URL de Neon exige sslmode=verify-full y una CA válida; la app usa certifi.
 El health devuelve RENDER_GIT_COMMIT para verificar el commit servido.
 
-Tras el primer despliegue aprobado, configurar el hook secreto en GitHub Actions
+El hook está configurado en GitHub Actions
 como RENDER_DEPLOY_HOOK, variable APP_URL y DEPLOY_ENABLED=true. Auto-deploy de
 Render debe quedar apagado. El workflow valida backend, compila React y arranca
 el contenedor; el deploy exige success de ambos jobs y ref=SHA. Un HTTP 200/202
@@ -68,4 +68,7 @@ Usar `powerbi/consumo.pq`, reemplazar BaseUrl y configurar Basic en el diálogo 
 credenciales con bi@example.test. No escribir contraseña en M. Importar todas
 las páginas. Comparar por fecha/servicio y el mismo as_of del endpoint. Descargar
 PBIX con informe y datos; repetir refresh y comprobar filtros/totales.
-El archivo definitivo todavía debe verificarse; los PBIX previos son ensayos.
+El archivo definitivo es `powerbi/Saldo_Consultas_y_Consumo.pbix`; fue descargado
+con informe y datos y decodificado desde Ubuntu. Refresh web y filtros correctos;
+Power BI Desktop en Windows no se ejecutó. Los PBIX de pruebas anteriores
+son ensayos independientes. Consultar `estado.md` y `portabilidad.md`.

@@ -9,3 +9,8 @@
 **/.pytest_cache
 evidencias-locales
 backups
+
+tmp
+output
+powerbi
+docs

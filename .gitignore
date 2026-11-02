@@ -10,4 +10,5 @@ dist/
 *.dump
 backups/
 evidencias-locales/
+tmp/
 *.pyc
