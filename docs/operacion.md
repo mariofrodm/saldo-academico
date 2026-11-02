@@ -29,8 +29,10 @@ desde Settings → Deploy keys cuando termine el trabajo académico. No expira s
 ## Despliegue
 
 Render: Web Service Docker, Free, Virginia, repositorio público, rama main.
-Variables: DATABASE_URL agrupada, DATABASE_URL_DIRECT para migración, claves
-Groq y contraseñas del seed, APP_ENV=production y COOKIE_SECURE=true.
+Variables: DATABASE_URL agrupada, DATABASE_URL_DIRECT para migración,
+GROQ_API_KEY, APP_ENV=production y COOKIE_SECURE=true. El seed se ejecuta
+desde el entorno local con la conexión cloud antes de publicar. Sus contraseñas
+no se necesitan en Render: la base conserva exclusivamente sus hashes.
 La URL de Neon exige sslmode=verify-full y una CA válida; la app usa certifi.
 El health devuelve RENDER_GIT_COMMIT para verificar el commit servido.
 

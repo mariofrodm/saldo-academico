@@ -21,6 +21,11 @@ El proveedor Groq permanece desactivado mientras no exista `GROQ_API_KEY`.
 
 ## Estado
 
-Consultar `docs/estado.md`. Las configuraciones locales no acreditan publicación
-cloud ni ejecución de GitHub Actions. El despliegue requiere cuentas Free,
-remoto y secretos configurados; nunca añadir métodos de pago para este proyecto.
+[Aplicación HTTPS](https://saldo-academico.onrender.com) ·
+[API / Swagger](https://saldo-academico.onrender.com/docs) ·
+[GitHub Actions](https://github.com/mariofrodm/saldo-academico/actions).
+
+Consultar `docs/estado.md` para distinguir verificaciones terminadas y pendientes.
+Render y Neon usan Free; nunca añadir métodos de pago para este proyecto.
+Render puede tardar al despertar tras inactividad. Las credenciales de prueba
+se entregan localmente, fuera del repositorio público.

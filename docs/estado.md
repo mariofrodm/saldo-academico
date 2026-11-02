@@ -19,12 +19,17 @@
 - Repositorio público creado con confirmación del usuario. GitHub CLI amplio
   cancelado; clave SSH exclusiva del repositorio confirmada y probada.
 - Workflow CI/CD escrito: tests + contenedor antes de deploy por SHA.
+- Código publicado en mariofrodm/saldo-academico. GitHub Actions ejecutó tests
+  y arranque del contenedor satisfactoriamente (run 41421455428, commit 99ca66c).
+- Primer Render Free publicado: https://saldo-academico.onrender.com;
+  health HTTPS confirma el commit 99ca66c y acceso a Neon.
+- Hook privado de Render guardado como secreto de Actions; APP_URL y
+  DEPLOY_ENABLED configurados. Falta comprobar el ciclo completo automático.
 - Colección Postman y consulta Power Query paginada sin credenciales preparadas.
 
 ## No dar por terminado todavía
 
-- Publicar el código y comprobar los jobs de GitHub Actions reales.
-- Crear/publicar Render Free, configurar secretos y automatizar despliegue.
+- Comprobar el ciclo completo de CI/CD desde un nuevo commit.
 - Comprobar UI/API publicadas, persistencia tras redeploy y uso externo.
 - Conectar Power BI a la API definitiva, contrastar totales y descargar PBIX final.
 - Completar PDF de evidencias y ensayo de entrega.

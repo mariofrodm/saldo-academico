@@ -1,6 +1,6 @@
 let
-    // Reemplazar por la URL HTTPS de la aplicación publicada. Sin secretos.
-    BaseUrl = "https://REEMPLAZAR.onrender.com",
+    // URL pública de la API; configurar Basic en el diálogo de credenciales.
+    BaseUrl = "https://saldo-academico.onrender.com",
     FechaDesde = "2026-11-01",
     FechaHasta = "2026-11-30",
     Corte = DateTimeZone.ToText(DateTimeZone.FixedUtcNow(), "yyyy-MM-ddTHH:mm:ss.ffffffzzz", "en-US"),
