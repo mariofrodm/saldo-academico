@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: saldo-academico
+    runtime: docker
+    plan: free
+    region: virginia
+    autoDeployTrigger: off
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: BI_PASSWORD
+        sync: false

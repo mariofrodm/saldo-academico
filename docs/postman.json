@@ -1,0 +1,196 @@
+{
+  "info": {
+    "name": "Saldo · demostración académica",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "email",
+      "value": "demo@example.test"
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 · Iniciar sesión",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sesión creada\", () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200) pm.collectionVariables.set(\"access_token\", pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 · Identidad y cuota",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/me"
+      }
+    },
+    {
+      "name": "03 · Tablero mensual",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/board?month=2026-11-01"
+      }
+    },
+    {
+      "name": "04 · RAG con fuentes",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/ai/rag",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Explica los pagos parciales de Universidad y cita las fuentes.\"\n}"
+        }
+      }
+    },
+    {
+      "name": "05 · Agente presupuesto",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/ai/budget",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Consulta mis ingresos y gastos de noviembre de 2026 y la inflación de Guatemala 2025; explica la diferencia de períodos y cita fuentes.\"\n}"
+        }
+      }
+    },
+    {
+      "name": "06 · Agente metas",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/ai/goals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Consulta mis metas y la referencia USD/GTQ. Simula la meta GTQ 5000 con saldo 500, a seis meses con aporte 750 y a nueve meses con aporte 500. Responde breve con fuentes.\"\n}"
+        }
+      }
+    },
+    {
+      "name": "07 · Historial propio",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/history"
+      }
+    },
+    {
+      "name": "08 · Consumo agregado",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/reports/summary?date_from=2026-11-01&date_to=2026-11-30"
+      }
+    },
+    {
+      "name": "09 · Datos para Power BI",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/reports/usage?date_from=2026-11-01&date_to=2026-11-30&page_size=100"
+      }
+    },
+    {
+      "name": "10 · Cerrar sesión",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/auth/logout"
+      }
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+name: Pruebas y despliegue
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: saldo-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: saldo
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: saldo
+        ports: ['5432:5432']
+        options: --health-cmd 'pg_isready -U saldo' --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://saldo:ci-test-only@localhost:5432/saldo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.lock
+      - run: pytest -q
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir aplicación y comprobar compilación TypeScript
+        run: docker build --build-arg BUILD_SHA=${{ github.sha }} -t saldo:ci .
+      - name: Probar arranque del contenedor con PostgreSQL
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          Path('.env').write_text('APP_ENV=local\nDATABASE_URL=postgresql://saldo:ci-test-only@db:5432/saldo\nPOSTGRES_PASSWORD=ci-test-only\nCOOKIE_SECURE=false\n')
+          PY
+          docker compose up --build -d --wait
+          docker compose exec -T app python -c "import urllib.request,json; r=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health')); assert r['database']=='ok'"
+      - name: Limpiar laboratorio de CI
+        if: always()
+        run: docker compose down --volumes
+  deploy:
+    needs: [backend, container]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.backend.result == 'success' && needs.container.result == 'success' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: academic-free
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.lock
+      - name: Publicar exactamente el commit probado
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import os, httpx
+          response=httpx.post(os.environ['DEPLOY_HOOK'],params={'ref':os.environ['EXPECTED_SHA']},timeout=30)
+          if response.status_code not in (200,202):
+              raise SystemExit('Render no aceptó el despliegue; revisar el servicio sin imprimir el hook.')
+          print('Despliegue solicitado; falta comprobar disponibilidad del SHA.')
+          PY
+      - name: Confirmar versión y persistencia accesibles
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: python scripts/check_release.py
