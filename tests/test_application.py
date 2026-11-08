@@ -120,17 +120,18 @@ def test_rag_insufficient_context_instruction(client,auth,monkeypatch):
 
 def test_budget_multistep_tools_and_every_call(client,auth,monkeypatch):
     monkeypatch.setenv('GROQ_API_KEY','test')
-    replies=iter([fake_reply(None,[tc('financial_summary',{'start':'2026-11-01','end':'2026-11-30'})]),
-                  fake_reply(None,[tc('inflation',{'year':2025})]),fake_reply('Comparación con fuente Banco Mundial.')])
+    replies=iter([fake_reply(None,[tc('budget_external_review',{'start':'2026-11-01','end':'2026-11-30','inflation_year':2025})]),
+                  fake_reply('Comparación con fuente Banco Mundial.')])
     monkeypatch.setattr(ai,'completion',lambda payload: next(replies))
     monkeypatch.setattr(ai,'inflation',lambda year:{'source':'https://api.worldbank.org','year':year,'annual_percent':'3.00','available':True})
     r=client.post('/api/v1/ai/budget',headers=auth,json={'prompt':'Compara mis gastos con inflación 2025'})
     assert r.status_code==200,r.text
     detail=client.get('/api/v1/history/'+r.json()['id'],headers=auth).json()
-    assert [t['name'] for t in detail['tools']]==['financial_summary','inflation']
-    assert len(detail['calls'])==3
+    assert [t['name'] for t in detail['tools']]==['budget_external_review']
+    assert detail['tools'][0]['result']['actions']==['financial_summary','inflation']
+    assert len(detail['calls'])==2
     summary=client.get('/api/v1/reports/summary',headers=auth).json()['items'][0]
-    assert summary['requests']==1 and summary['provider_calls']==3 and summary['total_tokens']==300
+    assert summary['requests']==1 and summary['provider_calls']==2 and summary['total_tokens']==200
 
 
 def test_goals_agent_simulates_two_scenarios(client,auth,monkeypatch):
