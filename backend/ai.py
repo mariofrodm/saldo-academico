@@ -26,6 +26,7 @@ from .grounding import unsupported_amounts
 from .savings_intent import savings_arguments
 from .context_budget import fit_payload, estimate_payload
 from .budget_answers import budget_answer, overview_fallback
+from .semantic_guard import guard_recorded_flow
 
 router=APIRouter(prefix='/api/v1',tags=['IA e historial'])
 
@@ -785,6 +786,14 @@ def ask(service:str,body:Ask,user=Depends(current_user)):
                                  if isinstance(r,dict) and r.get('source_id')=='SDIAG'),None)
                     if isinstance(closed,dict):
                         response_reference={'period':{'start':closed.get('from'),'end':closed.get('to')},'topic':'overview'}
+            corrected,removed=guard_recorded_flow(answer,verified_results)
+            if removed:
+                with db() as conn:
+                    conn.execute('INSERT INTO tool_runs(request_id,name,arguments,result) VALUES(%s,%s,%s,%s)',
+                        (request_id,'response_semantic_check',Jsonb({}),Jsonb({'replaced':True,
+                        'candidate_response':answer,'removed_sentences':removed,
+                        'reason':'El flujo registrado no acredita capacidad real de gasto ni cobertura total de obligaciones.'})))
+                answer=corrected
         with db() as conn:
             if response_reference:
                 conn.execute('INSERT INTO tool_runs(request_id,name,arguments,result) VALUES(%s,%s,%s,%s)',

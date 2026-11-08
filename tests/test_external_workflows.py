@@ -210,3 +210,27 @@ def test_real_budget_regression_margin_includes_savings_and_annual_rounding_is_v
     corrected = ('Ingresaron Q6,000.00, pagaste Q1,400.00 y apartaste Q500.00 de ahorro neto: '
                  'el margen registrado fue Q4,100.00. Inflación anual de 2025: 1,49 %.')
     assert unsupported_amounts(corrected, [result]) == []
+
+
+def test_real_budget_semantic_failure_is_corrected_and_audited_without_third_inference(client, auth, monkeypatch):
+    actual_reference = reference(2025)
+    actual_reference['annual_percent'] = '1.48841591086168'
+    monkeypatch.setattr(ai, 'inflation', lambda year: actual_reference)
+    candidate = ('En noviembre de 2026 registraste ingresos de Q6,000.00 y egresos de Q1,400.00; '
+        'el ahorro neto fue de Q500.00, dejando un disponible de Q4,100.00. '
+        'La inflación anual de Guatemala para 2025, según el Banco Mundial, fue del 1,49 %.\n\n'
+        'Este valor refleja la capacidad real de gasto después de cubrir todas tus obligaciones y reservar ahorro.')
+    payloads = completion_pair(monkeypatch, 'budget_external_review',
+        {'start': '2026-11-01', 'end': '2026-11-30', 'inflation_year': 2025}, candidate)
+    response = client.post('/api/v1/ai/budget', headers=auth, json={
+        'prompt': 'Consulta mis ingresos y egresos de noviembre de 2026 y la inflación anual de Guatemala de 2025.'})
+    assert response.status_code == 200, response.text
+    assert len(payloads) == 2
+    assert 'Q4,100.00' in response.json()['response'] and '1,49 %' in response.json()['response']
+    assert 'capacidad real de gasto' not in response.json()['response']
+    assert 'aún debes considerar pagos pendientes' in response.json()['response']
+    history = client.get('/api/v1/history/'+response.json()['id'], headers=auth).json()
+    semantic = next(tool['result'] for tool in history['tools'] if tool['name'] == 'response_semantic_check')
+    assert semantic['replaced'] and semantic['candidate_response'] == candidate
+    assert len(semantic['removed_sentences']) == 1
+    assert not any(tool['name'] == 'response_check' for tool in history['tools'])
