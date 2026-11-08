@@ -1,6 +1,7 @@
 import os
 import secrets
 import time
+from threading import Lock
 from collections import defaultdict, deque
 from datetime import date
 from decimal import Decimal
@@ -9,7 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder, ENCODERS_BY_TYPE
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from .db import db, one, many, money, audit
 from .security import current_user, admin, report_user, fingerprint, password_ok, password_hash
 from .domain import owned, board, finance_summary, goal_rows
@@ -23,7 +24,7 @@ class DecimalResponse(JSONResponse):
         return super().render(jsonable_encoder(content, custom_encoder={Decimal: str}))
 
 
-app=FastAPI(title='Saldo · API académica',version='1.0.0',default_response_class=DecimalResponse)
+app=FastAPI(title='Saldo · API',version='1.0.0',default_response_class=DecimalResponse)
 app.include_router(reports_router)
 
 from psycopg.errors import UniqueViolation, ForeignKeyViolation
@@ -55,6 +56,21 @@ class Strict(BaseModel):
 class Login(Strict):
     email: str=Field(min_length=3,max_length=160)
     password: str=Field(min_length=1,max_length=128)
+
+class Register(Strict):
+    email: str=Field(min_length=3,max_length=160,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    password: str=Field(min_length=12,max_length=128)
+    name: str|None=Field(default=None,max_length=100)
+
+    @field_validator('email',mode='before')
+    @classmethod
+    def normalize_email(cls,value):
+        return value.strip().lower() if isinstance(value,str) else value
+
+    @field_validator('name')
+    @classmethod
+    def normalize_name(cls,value):
+        return value.strip() or None if value is not None else None
 
 class Category(Strict):
     name: str=Field(min_length=1,max_length=80)
@@ -88,18 +104,35 @@ class Recurring(Strict):
     start_month: date
     active: bool=True
 
+    @field_validator('start_month')
+    @classmethod
+    def normalize_start_month(cls,value):
+        # The API accepts a date; the recurring schedule always starts on its month.
+        return value.replace(day=1)
+
 class UserCreate(Strict):
-    email: str=Field(min_length=3,max_length=160,pattern=r'^\S+@\S+\.\S+$')
+    email: str=Field(min_length=3,max_length=160,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
     name: str=Field(min_length=1,max_length=100)
     password: str=Field(min_length=12,max_length=128)
     role: str=Field(default='user',pattern='^(admin|user|bi)$')
     token_limit: int=Field(default=20000,ge=0,le=100000)
     bi_scope: int|None=None
 
+    @field_validator('email',mode='before')
+    @classmethod
+    def normalize_email(cls,value):
+        return value.strip().lower() if isinstance(value,str) else value
+
 class UserUpdate(Strict):
     name: str=Field(min_length=1,max_length=100)
     active: bool
     token_limit: int=Field(ge=0,le=100000)
+    email: str|None=Field(default=None,min_length=3,max_length=160,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+
+    @field_validator('email',mode='before')
+    @classmethod
+    def normalize_email(cls,value):
+        return value.strip().lower() if isinstance(value,str) else value
 
 class Knowledge(Strict):
     title: str=Field(min_length=1,max_length=160)
@@ -108,13 +141,53 @@ class Knowledge(Strict):
     active: bool=True
 
 class Service(Strict):
+    name: str|None=Field(default=None,min_length=1,max_length=100)
     enabled: bool
     model: str=Field(pattern=r'^[a-zA-Z0-9/_\-.]{1,100}$')
     max_output: int=Field(ge=128,le=768)
     max_rounds: int=Field(ge=2,le=6)
 
+    @field_validator('name',mode='before')
+    @classmethod
+    def normalize_name(cls,value):
+        return value.strip() if isinstance(value,str) else value
+
+
+class ServiceCreate(Service):
+    # Each identifier selects one audited strategy and its read-only tool permissions.
+    id: str=Field(pattern='^(rag|budget|goals)$')
+    name: str=Field(min_length=1,max_length=100)
+
 
 attempts=defaultdict(deque)
+attempts_lock=Lock()
+
+
+def throttle(key,limit=8):
+    now=time.monotonic()
+    with attempts_lock:
+        if len(attempts)>1000:
+            for expired in list(attempts):
+                if not attempts[expired] or attempts[expired][-1]<now-900:
+                    del attempts[expired]
+        history=attempts[key]
+        while history and history[0]<=now-900:
+            history.popleft()
+        if len(history)>=limit:
+            raise HTTPException(429,'Demasiados intentos; espera 15 minutos',headers={'Retry-After':'900'})
+        history.append(now)
+
+
+def create_session(conn,user_id):
+    token,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24)
+    conn.execute('DELETE FROM sessions WHERE expires_at<now()')
+    conn.execute("INSERT INTO sessions VALUES(%s,%s,%s,now()+interval '8 hours')",(fingerprint(token),user_id,csrf))
+    return {'access_token':token,'token_type':'bearer','csrf':csrf}
+
+
+def session_cookie(response,session):
+    response.set_cookie('saldo_session',session['access_token'],httponly=True,
+                        secure=os.getenv('COOKIE_SECURE','true')=='true',samesite='strict',max_age=28800)
 
 
 @app.get('/api/health',tags=['Sistema'])
@@ -126,24 +199,32 @@ def health():
 
 @app.post('/api/v1/auth/login',tags=['Autenticación'])
 def login(body: Login, request: Request, response: Response):
-    key=fingerprint((request.client.host if request.client else '')+body.email.lower())
-    now=time.monotonic()
-    if len(attempts)>1000:
-        for k in list(attempts):
-            if not attempts[k] or attempts[k][-1]<now-900: del attempts[k]
-    history=attempts[key]
-    while history and history[0]<now-900: history.popleft()
-    if len(history)>=8: raise HTTPException(429,'Demasiados intentos; espera 15 minutos')
-    history.append(now)
+    email=body.email.strip().lower()
+    throttle('login:'+fingerprint((request.client.host if request.client else '')+email))
     with db() as conn:
-        user=one(conn,'SELECT * FROM users WHERE email=%s AND active',(body.email.lower(),))
+        user=one(conn,'SELECT * FROM users WHERE email=%s AND active',(email,))
         if not user or user['role']=='bi' or not password_ok(body.password,user['password_hash']):
             raise HTTPException(401,'Credenciales incorrectas')
-        token,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24)
-        conn.execute('DELETE FROM sessions WHERE expires_at<now()')
-        conn.execute("INSERT INTO sessions VALUES(%s,%s,%s,now()+interval '8 hours')",(fingerprint(token),user['id'],csrf))
-    response.set_cookie('saldo_session',token,httponly=True,secure=os.getenv('COOKIE_SECURE','true')=='true',samesite='strict',max_age=28800)
-    return {'access_token':token,'token_type':'bearer','csrf':csrf}
+        session=create_session(conn,user['id'])
+    session_cookie(response,session)
+    return session
+
+
+@app.post('/api/v1/auth/register',tags=['Autenticación'],status_code=201)
+def register(body: Register,request: Request,response: Response):
+    throttle('register:'+fingerprint(request.client.host if request.client else ''),limit=5)
+    with db() as conn:
+        if one(conn,'SELECT id FROM users WHERE lower(email)=%s',(body.email,)):
+            raise HTTPException(409,'Correo existente')
+        name=body.name or body.email.split('@',1)[0][:100]
+        # Role and quota are server-controlled; public sign-up never seeds demo data.
+        user=one(conn,'''INSERT INTO users(email,name,password_hash,role,token_limit)
+                 VALUES(%s,%s,%s,'user',20000) RETURNING id''',
+                 (body.email,name,password_hash(body.password)))
+        audit(conn,user,'register','users',user['id'])
+        session=create_session(conn,user['id'])
+    session_cookie(response,session)
+    return session
 
 
 @app.post('/api/v1/auth/logout',tags=['Autenticación'])
@@ -246,8 +327,8 @@ def recurring_update(ident:int,body:Recurring,user=Depends(current_user)):
     with db() as conn:
         owned(conn,'recurring',ident,user); owned(conn,'categories',body.category_id,user)
         # Existing instances are snapshots. Editing applies only to uninstantiated months.
-        row=one(conn,'UPDATE recurring SET title=%s,amount=%s,category_id=%s,active=%s WHERE id=%s RETURNING *',
-                (body.title,body.amount,body.category_id,body.active,ident))
+        row=one(conn,'UPDATE recurring SET title=%s,amount=%s,category_id=%s,start_month=%s,active=%s WHERE id=%s RETURNING *',
+                (body.title,body.amount,body.category_id,body.start_month,body.active,ident))
         audit(conn,user,'update','recurring',ident)
         return row
 
@@ -271,6 +352,19 @@ def goal_update(ident:int,body:Goal,user=Depends(current_user)):
                    (body.name,body.target,body.deadline,body.active,ident))
 
 
+@app.delete('/api/v1/goals/{ident}',tags=['Ahorro'])
+def goal_delete(ident:int,user=Depends(current_user)):
+    with db() as conn:
+        # Movement creation locks this same parent. Ownership and deletion are
+        # therefore serialized; a concurrent contribution cannot become orphaned.
+        owned(conn,'goals',ident,user)
+        deleted=conn.execute('DELETE FROM savings WHERE goal_id=%s',(ident,)).rowcount
+        conn.execute('DELETE FROM goals WHERE id=%s AND user_id=%s',(ident,user['id']))
+        audit(conn,user,'delete','goals',ident)
+        audit(conn,user,'delete_dependents','savings',f'goal={ident};count={deleted}')
+    return {'ok':True,'deleted_movements':deleted}
+
+
 @app.get('/api/v1/goals/{ident}/movements',tags=['Ahorro'])
 def movements(ident:int,user=Depends(current_user)):
     with db() as conn:
@@ -289,7 +383,7 @@ def movement_create(ident:int,body:Movement,user=Depends(current_user)):
 
 @app.get('/api/v1/services',tags=['IA'])
 def services(user=Depends(current_user)):
-    with db() as conn: return {'items':many(conn,'SELECT * FROM services ORDER BY id'),'provider_ready':bool(os.getenv('GROQ_API_KEY'))}
+    with db() as conn: return {'items':many(conn,'SELECT * FROM services WHERE deleted_at IS NULL ORDER BY id'),'provider_ready':bool(os.getenv('GROQ_API_KEY'))}
 
 
 @app.get('/api/v1/admin/users',tags=['Administración'])
@@ -300,20 +394,53 @@ def users(user=Depends(admin)):
 @app.post('/api/v1/admin/users',tags=['Administración'])
 def user_create(body:UserCreate,user=Depends(admin)):
     with db() as conn:
-        if one(conn,'SELECT id FROM users WHERE email=%s',(body.email.lower(),)): raise HTTPException(409,'Correo existente')
+        if one(conn,'SELECT id FROM users WHERE lower(email)=%s',(body.email,)): raise HTTPException(409,'Correo existente')
         if body.bi_scope and not one(conn,"SELECT id FROM users WHERE id=%s AND role IN ('admin','user')",(body.bi_scope,)): raise HTTPException(422,'Alcance BI inválido')
         row=one(conn,'INSERT INTO users(email,name,password_hash,role,token_limit,bi_scope) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id',
-                (body.email.lower(),body.name,password_hash(body.password),body.role,body.token_limit,body.bi_scope))
+                (body.email,body.name,password_hash(body.password),body.role,body.token_limit,body.bi_scope))
         audit(conn,user,'create','users',row['id']); return row
+
+
+def managed_user(conn,ident,user,active):
+    # Serialize changes involving admins in a stable order. Two admins cannot
+    # deactivate each other concurrently and leave the installation without one.
+    administrators=many(conn,"SELECT id,active FROM users WHERE role='admin' ORDER BY id FOR UPDATE")
+    if not any(row['id']==user['id'] and row['active'] for row in administrators):
+        raise HTTPException(401,'Sesión administrativa inválida')
+    target=one(conn,'SELECT * FROM users WHERE id=%s FOR UPDATE',(ident,))
+    if not target:
+        raise HTTPException(404,'Usuario inexistente')
+    if not active:
+        if target['role']=='admin' and target['active'] and sum(row['active'] for row in administrators)<=1:
+            raise HTTPException(409,'Debe permanecer al menos un administrador activo')
+        if ident==user['id']:
+            raise HTTPException(409,'No puedes desactivar ni dar de baja tu propia cuenta')
+    return target
 
 
 @app.put('/api/v1/admin/users/{ident}',tags=['Administración'])
 def user_update(ident:int,body:UserUpdate,user=Depends(admin)):
     with db() as conn:
-        if ident==user['id'] and not body.active: raise HTTPException(409,'No puedes desactivarte')
-        if not one(conn,'SELECT id FROM users WHERE id=%s FOR UPDATE',(ident,)): raise HTTPException(404,'Usuario inexistente')
-        conn.execute('UPDATE users SET name=%s,active=%s,token_limit=%s WHERE id=%s',(body.name,body.active,body.token_limit,ident))
+        target=managed_user(conn,ident,user,body.active)
+        email=body.email if body.email is not None else target['email']
+        if one(conn,'SELECT id FROM users WHERE lower(email)=lower(%s) AND id<>%s',(email,ident)):
+            raise HTTPException(409,'Correo existente')
+        conn.execute('UPDATE users SET email=%s,name=%s,active=%s,token_limit=%s WHERE id=%s',
+                     (email,body.name,body.active,body.token_limit,ident))
+        if not body.active:
+            conn.execute('DELETE FROM sessions WHERE user_id=%s',(ident,))
         audit(conn,user,'update','users',ident)
+    return {'ok':True}
+
+
+@app.delete('/api/v1/admin/users/{ident}',tags=['Administración'])
+def user_deactivate(ident:int,user=Depends(admin)):
+    with db() as conn:
+        managed_user(conn,ident,user,False)
+        # A logical deletion preserves financial records, AI usage and audits.
+        conn.execute('UPDATE users SET active=false WHERE id=%s',(ident,))
+        conn.execute('DELETE FROM sessions WHERE user_id=%s',(ident,))
+        audit(conn,user,'deactivate','users',ident)
     return {'ok':True}
 
 
@@ -337,17 +464,54 @@ def knowledge_update(ident:int,body:Knowledge,user=Depends(admin)):
         audit(conn,user,'update','knowledge',ident); return row
 
 
+@app.get('/api/v1/admin/services',tags=['Administración'])
+def service_list(user=Depends(admin)):
+    with db() as conn: return many(conn,'SELECT * FROM services ORDER BY id')
+
+
+@app.post('/api/v1/admin/services',status_code=201,tags=['Administración'])
+def service_create(body:ServiceCreate,user=Depends(admin)):
+    with db() as conn:
+        # Reusing a strategy restores its identity, preserving conversations and usage.
+        # The conditional upsert also prevents concurrent creations from overwriting it.
+        row=one(conn,'''INSERT INTO services(id,name,enabled,model,max_output,max_rounds)
+                    VALUES(%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT(id) DO UPDATE SET name=excluded.name,enabled=excluded.enabled,
+                    model=excluded.model,max_output=excluded.max_output,max_rounds=excluded.max_rounds,
+                    deleted_at=NULL WHERE services.deleted_at IS NOT NULL RETURNING *''',
+                (body.id,body.name,body.enabled,body.model,body.max_output,body.max_rounds))
+        if not row: raise HTTPException(409,'Ya existe una configuración para este tipo de asistente')
+        audit(conn,user,'create','services',body.id); return row
+
+
 @app.put('/api/v1/admin/services/{ident}',tags=['Administración'])
 def service_update(ident:str,body:Service,user=Depends(admin)):
     with db() as conn:
-        row=one(conn,'UPDATE services SET enabled=%s,model=%s,max_output=%s,max_rounds=%s WHERE id=%s RETURNING *',
-                (body.enabled,body.model,body.max_output,body.max_rounds,ident))
-        if not row: raise HTTPException(404,'Servicio inexistente')
+        target=one(conn,'SELECT * FROM services WHERE id=%s FOR UPDATE',(ident,))
+        if not target: raise HTTPException(404,'Servicio inexistente')
+        if target['deleted_at'] is not None:
+            raise HTTPException(409,'El asistente fue dado de baja; crea su configuración para restaurarlo')
+        row=one(conn,'UPDATE services SET name=%s,enabled=%s,model=%s,max_output=%s,max_rounds=%s WHERE id=%s RETURNING *',
+                (body.name if body.name is not None else target['name'],body.enabled,body.model,body.max_output,body.max_rounds,ident))
         audit(conn,user,'update','services',ident); return row
+
+
+@app.delete('/api/v1/admin/services/{ident}',tags=['Administración'])
+def service_delete(ident:str,user=Depends(admin)):
+    with db() as conn:
+        target=one(conn,'SELECT * FROM services WHERE id=%s FOR UPDATE',(ident,))
+        if not target: raise HTTPException(404,'Servicio inexistente')
+        # A logical deletion preserves report identities, requests and provider accounting.
+        if target['deleted_at'] is None:
+            conn.execute('UPDATE services SET enabled=false,deleted_at=now() WHERE id=%s',(ident,))
+            audit(conn,user,'delete','services',ident)
+    return {'ok':True}
 
 
 from .ai import router as ai_router
 app.include_router(ai_router)
+from .advisor_api import router as advisor_router
+app.include_router(advisor_router)
 static=Path(__file__).resolve().parent.parent/'frontend'/'dist'
 if static.exists():
     app.mount('/assets',StaticFiles(directory=static/'assets'),name='assets')

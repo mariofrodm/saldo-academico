@@ -1,57 +1,86 @@
-# Estado verificable - 2 de noviembre de 2026
+# Estado verificable - 8 de noviembre de 2026
 
-## Implementado y comprobado
+Este archivo distingue código, pruebas locales, publicación y archivos. La
+presencia de una función o de un PBIX antiguo no acredita el cierre de una
+versión nueva. El cierre de esta revisión está en ejecución; las cifras finales
+se incorporan cuando existan sus evidencias, sin extrapolar resultados.
 
-- React/TypeScript + FastAPI en Docker Ubuntu; moneda operativa GTQ.
-- Autenticación, roles, aislamiento, administración, categorías, compromisos,
-  pagos parciales, ahorro, recurrentes idempotentes, corpus RAG e historial.
-- 27 pruebas automatizadas contra PostgreSQL 17 aislado. Groq y fuentes
-  públicas simuladas en CI; una advertencia de deprecación no bloqueante.
-- Neon Free Virginia, PostgreSQL 18.6, conexiones directa/agrupada con TLS
-  verificado en cliente libpq. Migraciones 0001-0003 y datos ficticios cargados.
-- Groq Free: los tres servicios probados con llamadas reales desde Render.
-  RAG con fuente propia; presupuesto con movimientos e inflación histórica
-  2025; metas con Banguat y dos simulaciones calculadas por herramientas.
-- Resultados faltantes se explican: la inflación anual 2026 no publicada y una
-  meta inexistente no se inventaron. Esas consultas siguen contabilizadas.
-- API HTTPS pública con autenticación, Swagger y colección Postman.
-- CI/CD completo exitoso: backend, contenedor y deploy, ejecución
-  [41423307877](https://github.com/mariofrodm/saldo-academico/actions/runs/41423307877),
-  commit verificado `0c5d2f7b0df16b643fc070056fd57563e0b2bedf`.
-  El workflow conserva el secreto del hook y fija el SHA probado. Render
-  auto-deploy está Off; Actions publica después de aprobar ambos jobs.
-- Aplicación: https://saldo-academico.onrender.com. Login, cookies Secure,
-  acceso BI de solo lectura y datos conservados tras redeploy comprobados.
-- Power BI conectado a la API definitiva con Basic guardado en Microsoft,
-  paginación y corte fijo por actualización, sin gateway local.
-  Actualización a petición completada 02/11/2026 09:51:24, Guatemala.
-- Web/API/Power BI/PBIX coinciden: 5 solicitudes, 15 llamadas, 8.445 tokens
-  de entrada + 1.271 de salida = 9.716. Filtro presupuesto: 2/6/3.669.
-- PBIX completo en `powerbi/Saldo_Consultas_y_Consumo.pbix`: ZIP íntegro,
-  modelo importado y consulta M decodificados desde Ubuntu con PBIXRay.
-  Cinco IDs únicos; filtros de fecha/servicio y agregaciones verificados.
-  Ningún secreto local encontrado en ZIP ni modelo ABF descomprimido.
-- Respaldo/restauración local comprobados: 16 tablas de dominio más Alembic,
-  19 claves foráneas y 57 restricciones iguales. Base original conservada.
-- Clon público sin credenciales comprobado; instrucciones en portabilidad.md.
-- PDF técnico de arquitectura, modelo y evidencias en
-  `output/pdf/Informe_Saldo_Academico.pdf`.
+## Implementación disponible
 
-## Límites y preparación de la defensa
+- React/TypeScript/Vite y FastAPI/Python, servidos desde un origen; PostgreSQL,
+  Docker, migraciones Alembic y documentación Swagger.
+- Registro público, login/logout, sesiones y CSRF, roles admin/user/BI,
+  aislamiento de finanzas, historial y herramientas por usuario.
+- Usuarios, categorías, obligaciones, pagos parciales, arrastre sin duplicados,
+  recurrentes mensuales, metas, aportes/retiros y auditoría.
+- Interfaz con formularios de creación arriba, montos alineados, acciones con
+  iconos y etiquetas en español, estados de color y acordeones independientes.
+- Eliminación confirmada de una meta y sus movimientos, transaccional y auditada.
+- Chat con tres servicios, RAG textual sobre PostgreSQL, documentación educativa
+  versionada, herramientas financieras de lectura, agentes con Banco Mundial
+  y Banguat, memoria acotada y respuestas naturales.
+- Cuotas personales y compartidas, reserva antes de inferencia, conciliación de
+  todas las rondas, historial de herramientas y reportes con paginación/corte.
+- Flujos de respuesta calculada sin proveedor y compactación de contexto.
 
-- Todo se realizó desde Ubuntu. No se ejecutó Power BI Desktop en Windows;
-  abrir/actualizar allí sigue siendo una comprobación opcional en una versión
-  actual compatible con el PBIX descargado, sin migrar servicios.
-- Power BI/Fabric mostraba 17 días restantes de prueba al verificar. No asumir
-  que los permisos/licencias o las cuotas Free sean indefinidos.
-- Render puede dormir por inactividad y Neon tiene cuotas y suspensión.
-  Abrir antes de la defensa; no usar pings artificiales ni activar pagos.
-- Groq tiene cuotas finitas; la clave del proyecto vence el 02/12/2026.
-  La cuenta demo conserva 10.284 tokens del límite interno de 20.000 al corte.
-- La suite no equivale a una auditoría de seguridad ni a pruebas de alta carga.
-  Ensayar la exposición y preparar credenciales locales para el docente.
+Los ajustes de cierre incluyen CRUD completo de las configuraciones de los
+espacios `rag`/`budget`/`goals`, persistencia del inicio de recurrentes y modo
+`local_only` para consultas calculadas durante esperas. La suite final y su
+publicación deben acreditar la revisión que contiene estos ajustes.
 
-Los resultados detallados, capturas y respaldos están en evidencias-locales,
-excluidos de Git. El PDF/PBIX de entrega solo contiene datos ficticios.
-La evidencia refleja los commits indicados; cambios documentales posteriores
-pueden producir un nuevo SHA de despliegue sin alterar la implementación.
+## Pruebas locales anteriores al último cierre
+
+La última suite completa registrada antes de los ajustes de cierre pasó **307
+pruebas backend y 106 subpruebas**, más **13 pruebas frontend** y **61
+comprobaciones de aceptación**, sin consumo de Groq en esa aceptación.
+La evidencia está en `evidencias-locales/auditoria-conversacional/` y se conserva
+fuera del repositorio por privacidad. No atribuir estas cifras a un CI o SHA
+posterior hasta volver a ejecutar sus verificaciones.
+
+## Publicación y Power BI: corte histórico acreditado
+
+- Publicación previa en `https://saldo-academico.onrender.com`, base Neon Free,
+  PostgreSQL 18.6 y conexiones TLS. Las pruebas locales usan PostgreSQL 17.
+- CI/CD histórico exitoso:
+  [ejecución 41423307877](https://github.com/mariofrodm/saldo-academico/actions/runs/41423307877),
+  commit `0c5d2f7b0df16b643fc070056fd57563e0b2bedf`, del 2 de noviembre.
+- Power BI importa la API HTTPS con Basic de lectura, sin gateway local, con
+  paginación y un corte estable por actualización.
+- El refresco manual del modelo fue comprobado el **8/11 a las 03:56 Guatemala**
+  sobre esa publicación previa: **5 solicitudes, 15 llamadas, 9.716 tokens**.
+  Esa actualización no acredita la nueva versión ni importa datos de localhost.
+- La programación de actualización estaba desactivada. Power BI/Fabric mostraba
+  **11 días de prueba** en esa inspección; revisar vigencia antes de la entrega.
+- El PBIX y PDF guardados al inicio de esta revisión eran del 2 de noviembre.
+  Deben regenerarse o descargarse después del contraste definitivo.
+
+## Cierre pendiente de acreditar para la revisión nueva
+
+1. Suite final, compilación y aceptación de los ajustes recientes.
+2. SQL final y migraciones sincronizados; arranque desde un clon limpio y
+   restauración en una base nueva, sin alterar la original.
+3. Commit de implementación, CI/CD exitoso y `/api/health` público con ese SHA.
+4. Preparación controlada de corpus/datos cloud y aceptación de los tres
+   servicios, incluida fuente externa y cálculos en cada agente especializado.
+5. Consumo externo autenticado desde cliente, historial y reportes cloud.
+6. Web/API/Power BI coincidentes en fechas, servicio, alcance y conjunto de
+   solicitudes; actualización completada y PBIX completo descargado.
+7. PDF con datos, capturas, modelo, SHA, pruebas y enlaces actuales; escaneo de
+   secretos en repositorio y exportaciones.
+
+## Condiciones de operación
+
+Costo permitido USD 0. Render, Neon y Groq Free tienen cuotas y pausas por
+inactividad; abrir la aplicación antes de la exposición sin pings artificiales.
+Una cuota personal mayor no amplía Groq ni el presupuesto compartido. El
+contador compartido diario de la app usa UTC: renueva a las 18:00 Guatemala.
+La cuota personal es acumulada y no se reinicia con ese día.
+
+La cuenta BI consume reportes; no debe usarse como usuario de IA. Las
+credenciales local/cloud son independientes y permanecen fuera de Git. La
+clave Groq configurada se creó con vencimiento el 2/12/2026; comprobar su estado
+sin exponerla. Retirar accesos temporales al terminar.
+
+Todo el desarrollo y la gestión web se realizan desde Ubuntu. Power BI Desktop
+en Windows no se ha ejecutado en esta auditoría; abrir el PBIX allí es una
+comprobación separada y no requiere trasladar la aplicación.

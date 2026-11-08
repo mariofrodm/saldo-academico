@@ -19,7 +19,7 @@ CREATE TABLE categories (
 CREATE TABLE recurring (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id),
  category_id bigint NOT NULL REFERENCES categories(id), title text NOT NULL,
- amount numeric(15,2) NOT NULL CHECK(amount>0), start_month date NOT NULL,
+ amount numeric(15,2) NOT NULL CHECK(amount>0), start_month date NOT NULL CHECK(EXTRACT(DAY FROM start_month)=1),
  active boolean NOT NULL DEFAULT true
 );
 CREATE TABLE obligations (
@@ -51,9 +51,11 @@ CREATE TABLE knowledge (
 CREATE INDEX knowledge_search ON knowledge USING gin(to_tsvector('spanish',title||' '||body));
 CREATE TABLE services (
  id text PRIMARY KEY CHECK(id IN ('rag','budget','goals')), name text NOT NULL,
- enabled boolean NOT NULL DEFAULT true, model text NOT NULL DEFAULT 'openai/gpt-oss-20b',
- max_output integer NOT NULL DEFAULT 512 CHECK(max_output BETWEEN 128 AND 768),
- max_rounds integer NOT NULL DEFAULT 6 CHECK(max_rounds BETWEEN 2 AND 6)
+ enabled boolean NOT NULL DEFAULT true, model text NOT NULL DEFAULT 'openai/gpt-oss-120b',
+ max_output integer NOT NULL DEFAULT 768 CHECK(max_output BETWEEN 128 AND 768),
+ max_rounds integer NOT NULL DEFAULT 6 CHECK(max_rounds BETWEEN 2 AND 6),
+ deleted_at timestamptz,
+ CONSTRAINT services_deleted_disabled_check CHECK(deleted_at IS NULL OR NOT enabled)
 );
 CREATE TABLE conversations (
  id uuid PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id),

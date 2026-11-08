@@ -102,7 +102,7 @@ def test_rag_sources_memory_and_usage(client,auth,monkeypatch):
     assert first.json()['sources'][0]['source_id'].startswith('D')
     second=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'¿Puedes explicarlo otra vez?','conversation_id':first.json()['conversation_id']})
     assert second.status_code==200
-    assert any(m['role']=='assistant' and '[D1]' in m['content'] for m in payloads[1]['messages'])
+    assert any(m['role']=='assistant' and 'Respuesta' in m['content'] for m in payloads[1]['messages'])
     with db() as conn:
         row=one(conn,'SELECT tokens_used,tokens_reserved FROM users WHERE id=2')
         assert row=={'tokens_used':200,'tokens_reserved':0}
@@ -115,7 +115,7 @@ def test_rag_insufficient_context_instruction(client,auth,monkeypatch):
     monkeypatch.setattr(ai,'completion',lambda payload: seen.append(payload) or fake_reply('Información insuficiente.'))
     r=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'astronauta plutonio'})
     assert r.status_code==200 and r.json()['sources']==[]
-    assert 'Si faltan datos, dilo' in seen[0]['messages'][0]['content']
+    assert 'Si falta un dato imprescindible, pregunta solo ese' in seen[0]['messages'][0]['content']
 
 
 def test_budget_multistep_tools_and_every_call(client,auth,monkeypatch):
@@ -148,11 +148,13 @@ def test_goals_agent_simulates_two_scenarios(client,auth,monkeypatch):
     assert detail['tools'][-1]['result']['reaches_goal'] is True
 
 
-def test_token_limit_blocks_without_provider(client,auth,monkeypatch):
+def test_token_limit_blocks_inference_without_provider(client,auth,monkeypatch):
     monkeypatch.setenv('GROQ_API_KEY','test')
     with db() as conn: conn.execute('UPDATE users SET token_limit=0 WHERE id=2')
     monkeypatch.setattr(ai,'completion',lambda _:pytest.fail('No se debe llamar al proveedor'))
-    assert client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'Presupuesto'}).status_code==429
+    # Calculated cash-flow summaries remain usable; explanatory generation
+    # must still respect the personal allowance before contacting the provider.
+    assert client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'Explícame la bola de nieve.'}).status_code==429
 
 
 def test_concurrent_reservation_only_one_succeeds(client):
@@ -185,7 +187,14 @@ def test_failure_usage_reconciled_and_recorded(client,auth,monkeypatch,kind):
         return {'choices':[{'message':{'role':'assistant','content':'Respuesta'}}]}
     monkeypatch.setattr(ai,'completion',fake)
     r=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'Presupuesto ahorro'})
-    assert r.status_code==(200 if kind=='missing_usage' else 429 if kind=='429' else 502)
+    assert r.status_code==(502 if kind=='timeout' else 200)
+    if kind=='429':
+        # The provider still rejects the call; the app can nevertheless give a
+        # clearly labelled summary of facts it already read without inference.
+        detail=client.get('/api/v1/history/'+r.json()['id'],headers=auth).json()
+        assert 'resumen' in r.json()['response']
+        assert detail['calls'][0]['usage_kind']=='rejected'
+        assert next(t for t in detail['tools'] if t['name']=='response_mode')['result']['reason']=='usage_limit'
     with db() as conn:
         u=one(conn,'SELECT tokens_used,tokens_reserved FROM users WHERE id=2')
         assert u['tokens_reserved']==0

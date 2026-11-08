@@ -63,3 +63,26 @@ Local y CI: PostgreSQL 17. Neon creado en PostgreSQL 18. Ambas versiones soporta
 el SQL usado; la migración cloud se verifica por separado. Docker Compose limita
 la aplicación a 512 MB y publica únicamente 127.0.0.1:8000. Subdominio HTTPS de
 Render para la publicación. Fabric no interviene en el backend.
+
+## Recorrido explicado
+
+La [guía de funcionamiento](como-funciona.md) desarrolla el recorrido de un
+registro financiero, una pregunta, cada agente y la importación Power BI. Las
+instrucciones centrales viven en `backend/agent_docs/00_instrucciones.md`; las
+guías restantes se importan por fragmentos al corpus. La recuperación es textual
+nativa de PostgreSQL, sin embeddings ni entrenamiento del modelo.
+
+El frontend puede solicitar `local_only` durante una espera para obtener una
+respuesta calculada sin inferencia. El servidor solo la entrega si dispone de
+un recorrido respaldado por datos actuales; de otro modo informa que requiere
+el modelo. La inferencia conserva sus controles de cuota y clave.
+
+Las configuraciones administrativas usan los tres espacios implementados:
+`rag`, `budget`, `goals`. La baja lógica conserva relaciones e historial. El
+modelo y los límites se consultan en la configuración; la revisión usa
+`openai/gpt-oss-120b`. Cambiar el nombre no añade otra implementación de agente.
+
+Localhost y Render tienen bases independientes. La publicación copia código;
+las migraciones, el corpus y la preparación de datos son operaciones distintas.
+Power BI importa solicitudes desde Render/Neon. Un PBIX o PDF ya descargado no
+se actualiza automáticamente al cambiar código o hacer consultas locales.

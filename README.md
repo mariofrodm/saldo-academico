@@ -1,49 +1,161 @@
 # Saldo · Finanzas personales con IA
 
-Proyecto académico. Moneda operativa GTQ; los escenarios USD/GTQ son simulaciones.
-Los pagos son registros manuales: no hay conexión bancaria ni transferencias reales.
+Saldo registra ingresos, gastos, abonos, recurrentes y metas de ahorro en GTQ.
+Sus tres asistentes consultan registros propios y fuentes educativas; los agentes
+de presupuesto y metas también pueden combinar datos externos y cálculos. Los
+pagos son registros manuales: no hay conexión bancaria ni transferencias reales.
 
-## Alcance aprobado
-
-Ver [especificación](docs/alcance.md) y [matriz de cumplimiento](docs/cumplimiento.md).
-El PRD original en Recursos se conserva como visión de producto futura.
-
-## Desarrollo
-
-1. Copiar `.env.example` a `.env` y establecer contraseñas propias.
-2. `docker compose up --build -d --wait`
-3. `docker compose exec app python -m backend.seed` (solo datos ficticios).
-4. Abrir http://localhost:8000 y http://localhost:8000/docs.
-5. `docker compose exec app pytest -q` usa una BD de pruebas separada.
-
-No versionar `.env`, claves, credenciales de BI ni respaldos de datos reales.
-El proveedor Groq permanece desactivado mientras no exista `GROQ_API_KEY`.
-
-## Estado
+Para entender el proyecto sin conocer su código, leer primero
+[Cómo funciona Saldo, de principio a fin](docs/como-funciona.md). Incluye recorrido
+de los datos, arquitectura, tecnologías, agentes, RAG, memoria, cuotas, publicación
+y Power BI. El [estado verificable](docs/estado.md) distingue la implementación,
+los ensayos locales, la versión publicada y los archivos de entrega.
 
 [Aplicación HTTPS](https://saldo-academico.onrender.com) ·
 [API / Swagger](https://saldo-academico.onrender.com/docs) ·
 [GitHub Actions](https://github.com/mariofrodm/saldo-academico/actions).
 
-Consultar `docs/estado.md` para distinguir verificaciones terminadas y pendientes.
-Render y Neon usan Free; nunca añadir métodos de pago para este proyecto.
-Render puede tardar al despertar tras inactividad. Las credenciales de prueba
-se entregan localmente, fuera del repositorio público.
+## Puesta en marcha local
 
-## Entrega y demostración
+Se necesitan Git y Docker con Compose. En Ubuntu no hace falta instalar Python,
+Node o PostgreSQL globalmente para ejecutar los contenedores.
 
-- [Informe técnico y evidencias (PDF)](output/pdf/Informe_Saldo_Academico.pdf).
-- [Informe completo Power BI (PBIX)](powerbi/Saldo_Consultas_y_Consumo.pbix).
-- [Colección Postman](docs/postman.json), con URL HTTPS publicada; establecer
-  la contraseña localmente. Para localhost cambiar la variable `base_url`.
-- [Portabilidad Ubuntu/Windows y recuperación](docs/portabilidad.md).
-- [Operación y cuotas gratuitas](docs/operacion.md).
+1. Clonar el repositorio y copiar `.env.example` a `.env`.
+2. Reemplazar los valores `CAMBIAR` por cuatro contraseñas propias e
+   independientes. Las cuentas iniciales exigen al menos 16 caracteres. Mantener
+   coherentes `POSTGRES_PASSWORD` y la contraseña de `DATABASE_URL`.
+3. Mantener `APP_ENV=local`, `COOKIE_SECURE=false` y la conexión al servicio `db`.
+4. Ejecutar:
 
-El PBIX se creó, actualizó y descargó desde Power BI web en Ubuntu. Se leyó su
-modelo localmente: 5 solicitudes, 15 llamadas y 9.716 tokens al corte de entrega.
-Los filtros por fecha y servicio coinciden con la web. Abrirlo en Power BI
-Desktop requiere Windows y una versión actual; ese ensayo no se ejecutó.
+```sh
+docker compose -p saldo_academico up --build -d --wait
+docker compose -p saldo_academico exec app python -m backend.seed
+docker compose -p saldo_academico exec app python -m backend.demo
+docker compose -p saldo_academico exec app python -m backend.knowledge
+```
 
-La consulta `powerbi/consumo.pq` importa noviembre de 2026. Cambiar FechaDesde y
-FechaHasta para otros períodos; las credenciales Basic se configuran fuera de M.
-El PDF es una evidencia fechada, no un monitor de los consumos posteriores.
+Abrir [la aplicación local](http://localhost:8000) y
+[Swagger local](http://localhost:8000/docs). El arranque aplica las migraciones.
+El seed crea cuentas, servicios y datos básicos; `demo` amplía explícitamente
+el escenario local de Ana; `knowledge` indexa las guías educativas Markdown.
+Las importaciones son idempotentes y no equivalen a publicar código.
+
+Las cuentas iniciales son `admin@example.test`, `demo@example.test` y
+`bi@example.test`. Sus contraseñas son las elegidas en `.env`, que no deben
+publicarse. El seed no muestra ni reemplaza contraseñas de cuentas existentes.
+La cuenta nueva registrada desde el login empieza sin datos financieros.
+
+Sin `GROQ_API_KEY` se pueden probar identidad, datos, reportes y respuestas
+calculadas admitidas. La inferencia real necesita una clave Groq Free y cuota
+disponible. No se requiere entrenar el modelo.
+
+Para apagar conservando registros, usar `docker compose -p saldo_academico down`
+sin `--volumes`. La receta local no debe apuntarse a Neon para ejecutar pruebas.
+Ver [instalación y recuperación](docs/portabilidad.md).
+
+## Pruebas y demostración
+
+```sh
+docker compose -p saldo_academico exec app pytest -q
+```
+
+La suite backend crea una base temporal local independiente y simula Groq y las
+fuentes externas: no consume tokens. El Dockerfile también ejecuta pruebas de
+frontend y compila TypeScript/React. Desde `frontend/`, con Node 24 y `npm ci`,
+se puede ejecutar `npm test` y `npm run build` por separado.
+
+- [Guion corto de exposición](docs/guion-demostracion.md).
+- [Aceptación completa paso a paso](docs/aceptacion-final.md).
+- [Escenario de referencia y cifras históricas](docs/escenario-demo.md).
+- [Auditoría conversacional y límites](docs/auditoria-conversacional.md).
+
+`scripts/verificar_aceptacion.py` comprueba la API local sin usar Groq. Los
+resultados fechados y el estado de CI/cloud se consultan en `docs/estado.md`;
+un número anterior de pruebas no acredita una publicación posterior.
+
+## Cuentas, administración y datos
+
+El acceso permite **Crear cuenta** con correo y contraseña de 12 a 128
+caracteres; `name` es opcional. El servidor asigna rol `user` y cuota inicial de
+20.000 tokens. El registro devuelve una sesión igual que el login y rechaza
+correos duplicados y campos para escalar permisos.
+
+Administración permite crear, listar, editar y dar de baja usuarios. El rol se
+elige al crear; no se cambia mediante la edición común. La baja de usuario es
+lógica: revoca sesiones y conserva finanzas e historial. Se puede reactivar;
+no se permite la propia baja ni dejar sin administrador activo.
+
+Las configuraciones IA ocupan los tres espacios implementados (`rag`, `budget`
+y `goals`). El administrador las crea/recrea, consulta, edita y da de baja de
+forma lógica, preservando historial y consumo. Dar un nombre nuevo a una
+configuración no implementa una herramienta o agente nuevo.
+
+Los importes y cálculos usan `Decimal`/`NUMERIC`. Los abonos se registran
+separados de los compromisos; no se puede abonar más del pendiente. Las metas
+muestran movimientos en acordeones independientes. Su eliminación confirmada
+borra también sus movimientos y cambia los totales históricos de ahorro; la
+acción conserva auditoría. Las plantillas recurrentes normalizan el inicio al
+primer día del mes y sus ediciones no reescriben instancias anteriores.
+
+## Asistentes y API
+
+Los tres asistentes usan instrucciones versionadas, un corpus recuperable por
+búsqueda textual de PostgreSQL y herramientas de lectura con usuario fijado en
+el servidor. No hay embeddings, servicio vectorial ni SQL libre del modelo.
+Los cálculos se realizan en el backend. Las fuentes externas disponibles son
+inflación anual de Guatemala en Banco Mundial y referencia USD/GTQ en Banguat.
+Ver [catálogo y contratos](docs/agentes/README.md).
+
+El servidor reconstruye hasta seis intercambios completos, con referencias
+verificadas y contexto acotado. Un mes explícito nuevo tiene prioridad sobre el
+anterior. Las conversaciones se separan por asistente; recargar inicia una
+vista nueva y el historial persistido permanece disponible.
+
+Las comparaciones sencillas y algunas consultas de margen/metas usan respuestas
+calculadas con cero llamadas. Las preguntas abiertas utilizan Groq. Las fuentes,
+herramientas y consumo se revisan en Historial. `local_only: true` en la
+petición IA permite intentar una respuesta calculada durante una espera o sin
+proveedor: si la pregunta requiere inferencia, se informa sin gastar Groq.
+No se aumentan cuotas ni se reinician contadores por usar ese modo.
+
+Para probar cálculos propios directamente:
+
+- `GET /api/v1/advisor/tools`: manifiesto autenticado.
+- `POST /api/v1/advisor/{tool_name}`: `{"arguments": {...}}` según el manifiesto.
+
+Esas lecturas no llaman a Groq. El contenido educativo no proporciona tasas,
+cuotas contractuales ni saldos bancarios que no estén registrados. Una pregunta
+documentada no se considera validada en cualquier formulación posible.
+
+## Reporterías y archivos
+
+La web y Power BI usan la misma API de solicitudes y tokens. Power BI importa
+desde la URL pública en Render con la cuenta BI de solo lectura; no consulta
+localhost ni accede directamente a Neon. `powerbi/consumo.pq` recorre todas las
+páginas bajo un mismo corte `as_of`. Los filtros iniciales cubren noviembre de
+2026 y se modifican en `FechaDesde`/`FechaHasta`.
+
+Para incorporar nuevas consultas hay que **actualizar el modelo semántico**,
+esperar que termine y refrescar la vista. Un PBIX descargado y un PDF existente
+no se actualizan automáticamente; sus cortes se documentan en `estado.md`.
+
+- [Informe técnico y evidencias PDF](output/pdf/Informe_Saldo_Academico.pdf).
+- [Power BI con informe y modelo PBIX](powerbi/Saldo_Consultas_y_Consumo.pbix).
+- [Colección Postman](docs/postman.json), sin contraseñas ni tokens guardados.
+- [Alcance aprobado](docs/alcance.md), [arquitectura](docs/arquitectura.md) y
+  [matriz de cumplimiento](docs/cumplimiento.md).
+
+El trabajo se realiza desde Ubuntu. Power BI Desktop requiere Windows; usarlo
+para abrir el PBIX es una comprobación separada que solo se afirma si se ejecutó.
+No requiere trasladar los servicios cloud.
+
+## Operación gratuita y secretos
+
+Render, Neon y Groq usan Free con cuotas y pausas por inactividad. La licencia
+institucional de Microsoft debe revisarse antes de presentar. Aumentar una cuota
+local no compra créditos ni amplía el límite real de Groq. No añadir tarjetas,
+planes de pago, cron pagado ni pings para impedir las suspensiones.
+
+No versionar `.env`, `.env.cloud`, claves, sesiones, credenciales BI, hooks ni
+respaldos privados. Las credenciales locales y cloud son independientes.
+Ver [operación y cuotas](docs/operacion.md).

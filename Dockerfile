@@ -3,7 +3,7 @@ WORKDIR /web
 COPY frontend/package*.json ./
 RUN npm ci --ignore-scripts
 COPY frontend/ ./
-RUN npm run build
+RUN npm test && npm run build
 
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TIKTOKEN_CACHE_DIR=/opt/tiktoken-cache

@@ -72,3 +72,31 @@ El archivo definitivo es `powerbi/Saldo_Consultas_y_Consumo.pbix`; fue descargad
 con informe y datos y decodificado desde Ubuntu. Refresh web y filtros correctos;
 Power BI Desktop en Windows no se ejecutó. Los PBIX de pruebas anteriores
 son ensayos independientes. Consultar `estado.md` y `portabilidad.md`.
+
+## Cierre, cuotas y lectura durante una espera
+
+La cuota por usuario es acumulada: el registro comienza con 20.000 y la API
+permite asignar hasta 100.000. La app limita el consumo compartido a 100.000 por
+día UTC, 7.000 por minuto y 24 llamadas por minuto. La reserva de una llamada
+está acotada a 6.500; incluye contexto y salida prevista. Confirmar código y
+cuenta del proveedor antes de presentar. Esas cifras no compran créditos.
+
+El día UTC renueva a las 18:00 Guatemala; la cuota personal no renueva entonces.
+Recargar, reiniciar o cambiar de conversación no aumenta presupuesto.
+`local_only: true` intenta respuestas calculadas con datos actuales y cero
+inferencia, incluso durante una espera de Groq o sin clave. Si no hay una ruta
+local suficiente, devuelve 409 sin contactar al proveedor. No genera una
+respuesta inventada para esquivar el límite.
+
+Para probar configuración de servicios, usar los tres espacios especializados.
+GET administrativo incluye bajas; POST crea/recrea un espacio disponible; PUT
+edita una configuración vigente; DELETE da de baja lógica. Conservar la
+configuración original, evitar solicitudes en curso y restaurar disponibilidad
+antes de una exposición. No necesita llamar a Groq.
+
+Para la entrega, seguir [aceptación](aceptacion-final.md), guardar un corte de
+API, actualizar el modelo Power BI y descargar el PBIX completo. Regenerar el
+PDF desde un manifest nuevo, sin reutilizar implícitamente métricas/capturas
+anteriores. `--require-final` exige release del mismo SHA, pruebas, actualización
+BI, totales, archivo y capturas; esos checks verifican presencia y coherencia
+del manifest, no reemplazan la revisión factual de sus evidencias.

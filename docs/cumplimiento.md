@@ -21,4 +21,7 @@ de que esté implementada o publicada.
 | A14 | CI/CD solo con pruebas exitosas | commit exacto y fallo que no despliega |
 | A15 | SQL/seed, PDF, repositorio y enlaces | ensayo de entrega/restauración |
 
-Prioridad: publicar sección mínima y probar A11 antes de ampliar funciones.
+La revisión actual se cierra en el orden: correcciones y suite → publicación
+del SHA probado → aceptación cloud de servicios y API → contraste Power BI →
+PBIX/PDF/documentación → clon y recuperación. El estado fechado de cada corte
+está en `estado.md`; no asignar 100 % por la mera existencia de archivos.

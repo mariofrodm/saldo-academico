@@ -1,7 +1,8 @@
 {
   "info": {
-    "name": "Saldo · demostración académica",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "name": "Saldo · API y recorrido de aceptación",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Interfaz y cliente externo consumen la misma API. Completar contraseñas y tokens en privado y no exportarlos. Las peticiones IA pueden consumir Groq Free; las herramientas advisor no llaman al proveedor. Los grupos opcionales crean o modifican datos: ejecutar peticiones individualmente, con cuenta y entidad de aceptación, nunca toda la colección sin revisar."
   },
   "variable": [
     {
@@ -18,6 +19,58 @@
     },
     {
       "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "report_cutoff",
+      "value": ""
+    },
+    {
+      "key": "report_cutoff_query",
+      "value": ""
+    },
+    {
+      "key": "registration_email",
+      "value": ""
+    },
+    {
+      "key": "registration_password",
+      "value": ""
+    },
+    {
+      "key": "registration_access_token",
+      "value": ""
+    },
+    {
+      "key": "managed_user_id",
+      "value": ""
+    },
+    {
+      "key": "goal_id",
+      "value": ""
+    },
+    {
+      "key": "conversation_id",
+      "value": ""
+    },
+    {
+      "key": "service_id",
+      "value": "budget"
+    },
+    {
+      "key": "service_name",
+      "value": "Analiza tu presupuesto"
+    },
+    {
+      "key": "date_from",
+      "value": "2026-11-01"
+    },
+    {
+      "key": "date_to",
+      "value": "2026-11-30"
+    },
+    {
+      "key": "after_cursor",
       "value": ""
     }
   ],
@@ -94,8 +147,9 @@
         "url": "{{base_url}}/api/v1/ai/rag",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Explica los pagos parciales de Universidad y cita las fuentes.\"\n}"
-        }
+          "raw": "{\n  \"prompt\": \"¿En qué gasté más en octubre de 2026?\"\n}"
+        },
+        "description": "RAG con fuentes y hechos propios. Consume proveedor cuando no existe respuesta calculada pertinente. Las fuentes técnicas se consultan en Historial; la respuesta principal conserva lenguaje natural."
       }
     },
     {
@@ -115,7 +169,7 @@
         "url": "{{base_url}}/api/v1/ai/budget",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Consulta mis ingresos y gastos de noviembre de 2026 y la inflación de Guatemala 2025; explica la diferencia de períodos y cita fuentes.\"\n}"
+          "raw": "{\n  \"prompt\": \"Consulta mis ingresos, pagos y ahorro de octubre de 2026 y la inflación anual de Guatemala 2025 en Banco Mundial. Explica la diferencia de períodos.\"\n}"
         }
       }
     },
@@ -136,7 +190,7 @@
         "url": "{{base_url}}/api/v1/ai/goals",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Consulta mis metas y la referencia USD/GTQ. Simula la meta GTQ 5000 con saldo 500, a seis meses con aporte 750 y a nueve meses con aporte 500. Responde breve con fuentes.\"\n}"
+          "raw": "{\n  \"prompt\": \"Consulta el Fondo de emergencia y su saldo actual. Consulta la referencia USD/GTQ de Banguat. Compara seis meses aportando Q500 mensuales con seis meses aportando Q750. Explica brevemente ambos resultados y el carácter de referencia del tipo de cambio.\"\n}"
         }
       }
     },
@@ -163,8 +217,20 @@
             "value": "Bearer {{access_token}}"
           }
         ],
-        "url": "{{base_url}}/api/v1/reports/summary?date_from=2026-11-01&date_to=2026-11-30"
-      }
+        "url": "{{base_url}}/api/v1/reports/summary?date_from={{date_from}}&date_to={{date_to}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Resumen disponible\", () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200) { const stamp=pm.response.json().as_of; pm.collectionVariables.set(\"report_cutoff\", stamp); pm.collectionVariables.set(\"report_cutoff_query\", encodeURIComponent(stamp)); }"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "09 · Datos para Power BI",
@@ -176,8 +242,25 @@
             "value": "Bearer {{access_token}}"
           }
         ],
-        "url": "{{base_url}}/api/v1/reports/usage?date_from=2026-11-01&date_to=2026-11-30&page_size=100"
-      }
+        "url": "{{base_url}}/api/v1/reports/usage?date_from={{date_from}}&date_to={{date_to}}&page_size=100&as_of={{report_cutoff_query}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Datos disponibles\", () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200) {",
+              "  const result = pm.response.json();",
+              "  pm.test(\"Mismo corte del resumen\", () => pm.expect(result.as_of).to.eql(pm.collectionVariables.get(\"report_cutoff\")));",
+              "  pm.test(\"Entrada más salida coincide\", () => result.items.forEach(row => pm.expect(row.input_tokens + row.output_tokens).to.eql(row.total_tokens)));",
+              "  if(result.next_cursor) console.info(\"Hay más páginas: repetir usage con after=next_cursor y el mismo as_of.\");",
+              "}"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "10 · Cerrar sesión",
@@ -191,6 +274,512 @@
         ],
         "url": "{{base_url}}/api/v1/auth/logout"
       }
+    },
+    {
+      "name": "Opcional · Registro y administración de cuentas",
+      "description": "Ejecutar explícitamente, contra una revisión que incluya estas rutas. Para localhost usar http://localhost:8000. Completar registration_email y registration_password en privado. El registro guarda un token separado, sin sustituir access_token. La identidad de la cuenta nueva fija managed_user_id. Para editar o dar de baja, ejecutar primero la solicitud 01 con una cuenta administradora; no seleccionar la propia cuenta ni el último administrador. No exportar variables con credenciales o tokens.",
+      "item": [
+        {
+          "name": "Listar usuarios (administración)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users",
+            "description": "Requiere sesión administradora. La baja lógica mantiene datos e historial."
+          }
+        },
+        {
+          "name": "11 · Crear cuenta pública",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/register",
+            "description": "Público, sin Bearer. email y password son obligatorios; name es opcional. Contraseña de 12 a 128 caracteres. El servidor fija role=user y token_limit=20000; rechaza campos adicionales. HTTP 201 inicia sesión con cookie HttpOnly y devuelve access_token, token_type y csrf; el correo repetido devuelve 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registration_email}}\",\n  \"password\": \"{{registration_password}}\",\n  \"name\": \"Usuario nuevo\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Cuenta creada\", () => pm.response.to.have.status(201));",
+                  "if(pm.response.code===201) {",
+                  "  const session=pm.response.json();",
+                  "  pm.test(\"Sesión y CSRF disponibles\", () => { pm.expect(session.access_token).to.be.a(\"string\").and.not.empty; pm.expect(session.csrf).to.be.a(\"string\").and.not.empty; });",
+                  "  pm.collectionVariables.set(\"registration_access_token\", session.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 · Identidad de la cuenta nueva",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{registration_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/me",
+            "description": "Después del registro, confirma los permisos iniciales y guarda su ID para las operaciones administrativas opcionales. El token de esta cuenta se mantiene separado de la sesión del administrador."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Cuenta nueva disponible\", () => pm.response.to.have.status(200));",
+                  "if(pm.response.code===200) {",
+                  "  const user=pm.response.json();",
+                  "  pm.test(\"Rol y cuota asignados por servidor\", () => { pm.expect(user.role).to.eql(\"user\"); pm.expect(user.token_limit).to.eql(20000); });",
+                  "  pm.collectionVariables.set(\"managed_user_id\", String(user.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 · Editar o reactivar usuario (administración)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users/{{managed_user_id}}",
+            "description": "Requiere access_token de administrador obtenido con la solicitud 01. name, active y token_limit son obligatorios; email es opcional y omitirlo conserva el correo. No admite role. Este ejemplo activa la cuenta; reenviarlo después de la baja permite reactivarla, pero no restaura sus sesiones revocadas. No permite correo duplicado, autobaja ni dejar sin administrador activo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Usuario actualizado\",\n  \"email\": \"{{registration_email}}\",\n  \"active\": true,\n  \"token_limit\": 20000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Usuario actualizado\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 · Baja lógica de usuario (administración)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users/{{managed_user_id}}",
+            "description": "Requiere access_token de administrador. Desactiva la cuenta y revoca sus sesiones; conserva sus datos financieros, historial y consumo. No elimina físicamente al usuario. La autobaja y la baja del último administrador activo devuelven 409. Para reactivar, ejecutar la solicitud 13 con active=true e iniciar una sesión nueva con la cuenta reactivada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Cuenta desactivada\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear usuario desde Administración",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users",
+            "description": "HTTP 200 con ID. Usar correo distinto del registro público. La contraseña debe completarse como variable privada. No se cambia de rol una cuenta existente con PUT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{registration_email}}\",\n  \"name\": \"Usuario de aceptación\",\n  \"password\": \"{{registration_password}}\",\n  \"role\": \"user\",\n  \"token_limit\": 20000\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lecturas sin proveedor · advisor",
+      "description": "Estos endpoints calculan datos propios sin contactar Groq; requieren sesión. La identidad se toma del token y no de arguments. Las respuestas pueden limitar detalles e indicar has_more, manteniendo los totales completos.",
+      "item": [
+        {
+          "name": "Manifiesto de herramientas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/advisor/tools",
+            "description": ""
+          }
+        },
+        {
+          "name": "Panorama financiero de octubre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/advisor/financial_diagnosis",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"arguments\": {\n    \"start\": \"2026-10-01\",\n    \"end\": \"2026-10-31\",\n    \"as_of\": \"2026-11-08\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Comparar categorías",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/advisor/compare_spending",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"arguments\": {\n    \"start\": \"2026-10-01\",\n    \"end\": \"2026-10-31\",\n    \"category_a\": \"Alimentación\",\n    \"category_b\": \"Universidad\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Pagos pequeños",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/advisor/small_expenses",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"arguments\": {\n    \"start\": \"2026-10-01\",\n    \"end\": \"2026-10-31\",\n    \"threshold\": \"50.00\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Consulta breve en conversación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/ai/rag",
+            "description": "Intenta una respuesta calculada sin proveedor. local_only impide inferencia; si la pregunta requiere modelo, se informa sin consumir Groq. Puede usarse durante una espera de proveedor. La ruta normal sigue aplicando acceso y servicio habilitado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"¿Cuánto margen me dejó octubre de 2026 para ahorrar o pagar deuda?\",\n  \"local_only\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Opcional · Metas y movimientos",
+      "description": "Ejecutar solo contra una meta creada para aceptación. Cambios reales de la base seleccionada; no ejecutar borrado sobre las metas de la demostración. El ID se guarda en goal_id manualmente después de crear.",
+      "item": [
+        {
+          "name": "Listar metas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goals",
+            "description": ""
+          }
+        },
+        {
+          "name": "Crear meta de aceptación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goals",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fondo de aceptación\",\n  \"target\": \"100.00\",\n  \"deadline\": \"2027-12-31\",\n  \"active\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Editar meta de aceptación",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goals/{{goal_id}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fondo de aceptación actualizado\",\n  \"target\": \"120.00\",\n  \"deadline\": \"2027-12-31\",\n  \"active\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Consultar movimientos de una meta",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goals/{{goal_id}}/movements",
+            "description": ""
+          }
+        },
+        {
+          "name": "Registrar aporte de aceptación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goals/{{goal_id}}/movements",
+            "description": "Un aporte aumenta ahorro y reduce flujo disponible. Un retiro usa amount negativo; no puede superar el saldo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"40.00\",\n  \"moved_on\": \"2026-11-08\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Eliminar meta y todos sus movimientos",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goals/{{goal_id}}",
+            "description": "Eliminación permanente, transaccional y auditada de la meta propia y sus movimientos. Cambia los totales históricos de ahorro. HTTP 404 para una meta ajena. Ejecutar únicamente tras revisar ID y entorno; no forma parte del recorrido automático."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Opcional · CRUD de configuraciones IA",
+      "description": "Requiere administrador. Hay tres espacios especializados: rag, budget y goals. Una baja es lógica y conserva conversaciones y consumos. Crear recupera un espacio eliminado; no permite definir un agente arbitrario sin implementación. No ejecutar el grupo en Runner. Anotar la configuración original y restaurarla tras la prueba; no llamar al proveedor para comprobar el formulario.",
+      "item": [
+        {
+          "name": "Listar configuraciones completas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/services",
+            "description": "Incluye configuraciones dadas de baja mediante deleted_at. GET /services muestra solo servicios vigentes."
+          }
+        },
+        {
+          "name": "Crear o recuperar configuración de un espacio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/services",
+            "description": "HTTP 201 al crear/recrear un espacio disponible y 409 si su configuración sigue vigente. service_id debe ser rag, budget o goals.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{service_id}}\",\n  \"name\": \"{{service_name}}\",\n  \"enabled\": true,\n  \"model\": \"openai/gpt-oss-120b\",\n  \"max_output\": 768,\n  \"max_rounds\": 4\n}"
+            }
+          }
+        },
+        {
+          "name": "Editar configuración",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/services/{{service_id}}",
+            "description": "max_output de 128 a 768; max_rounds de 2 a 6. name es opcional. Una configuración eliminada debe recrearse con POST, no con PUT. Cambiar max_output no aumenta créditos gratuitos.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{service_name}}\",\n  \"enabled\": true,\n  \"model\": \"openai/gpt-oss-120b\",\n  \"max_output\": 768,\n  \"max_rounds\": 4\n}"
+            }
+          }
+        },
+        {
+          "name": "Dar de baja configuración",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/services/{{service_id}}",
+            "description": "Baja lógica: deja de estar disponible, preserva historial, llamadas y FK. Restaurar explícitamente con POST y la configuración original. Ejecutar solo cuando no haya demostraciones en curso."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Opcional · Paginación y seguimiento",
+      "description": "Utilizar el mismo corte de la petición 08 para comparar reportes. Copiar next_cursor a after_cursor cuando exista. conversation_id se obtiene de una respuesta IA de la misma identidad y servicio.",
+      "item": [
+        {
+          "name": "Página siguiente de consumo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/reports/usage?date_from={{date_from}}&date_to={{date_to}}&page_size=100&as_of={{report_cutoff_query}}&after={{after_cursor}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "Seguimiento de conversación RAG",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/ai/rag",
+            "description": "Usar después de comparar dos categorías en esa conversación. Un UUID ajeno o de otro servicio devuelve 404. Puede requerir proveedor si no hay contexto verificado suficiente.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"¿Cuánto de diferencia en ese mismo mes?\",\n  \"conversation_id\": \"{{conversation_id}}\"\n}"
+            }
+          }
+        }
+      ]
     }
   ]
 }

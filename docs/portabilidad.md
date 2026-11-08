@@ -131,7 +131,15 @@ recientes y un destino compatible; este ensayo no acredita importar un dump
 
 Se comprobó un clon HTTPS público desde una carpeta nueva, sin credenciales,
 con Dockerfile, Compose, dependencias fijadas, frontend, migraciones y CI.
-El estado auditado tenía 43 archivos versionados y ningún `.env` real, clave
+El corte histórico auditado del 2/11 tenía 43 archivos versionados y ningún `.env` real, clave
 privada o respaldo. La clave SSH local sirve únicamente para publicar cambios;
 no es necesaria para clonar, compilar o usar el proyecto y no debe copiarse
 como parte del código.
+
+## Revisión de entrega nueva
+
+El ensayo del 2/11 es histórico: la revisión nueva debe repetir arranque limpio,
+indexación de guías y restauración y registrar su SHA/revisión de migraciones
+en `estado.md`. Después del seed, `python -m backend.demo` amplía explícitamente
+el escenario local y `python -m backend.knowledge` indexa las guías. No importar
+respaldos privados como parte de un repositorio público.
