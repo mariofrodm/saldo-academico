@@ -84,6 +84,7 @@ def test_budget_external_flow_two_inferences_separate_periods_and_sources(client
     result = detail['tools'][0]['result']
     assert result['flow']['from'] == '2026-10-01' and result['inflation']['year'] == 2025
     assert result['flow']['available'] == '73.00'
+    assert result['margin_after_savings'] == '73.00'
     assert result['actions'] == ['financial_summary', 'inflation']
     assert any(source.get('source', '').startswith('https://api.worldbank.org/') for source in response.json()['sources'])
     assert not any(tool['name'] == 'response_check' for tool in detail['tools'])
@@ -108,6 +109,7 @@ def test_goal_external_flow_two_inferences_current_owned_balance_and_two_scenari
     assert result['goal']['balance'] == '550.00'
     assert [r['projected_balance'] for r in result['scenarios']] == ['3550.00', '5050.00']
     assert result['difference_gtq'] == '1500.00'
+    assert result['schedule_checked'] is False and result['affordability_checked'] is False
     assert [r['reaches_goal'] for r in result['scenarios']] == [False, True]
     assert result['actions'] == ['savings_plan', 'savings_plan', 'exchange_rate']
     assert any(source.get('source', '').startswith('https://www.banguat.gob.gt/') for source in response.json()['sources'])
@@ -189,3 +191,22 @@ def test_nested_budget_and_goal_values_are_grounded(client, monkeypatch):
     goal = ai.execute_tool('goal_external_scenarios', {'goal_id': 1, 'months': 6, 'monthly_a': '500.00', 'monthly_b': '750.00', 'include_exchange_rate': False}, 2)
     assert unsupported_amounts('Ingresos Q6,000.00 e inflación 3%. Con Q500.00 quedarían Q3,500.00.', [budget, goal]) == []
     assert unsupported_amounts('Quedarían Q9,999.00.', [budget, goal])
+
+
+def test_real_budget_regression_margin_includes_savings_and_annual_rounding_is_valid(client, monkeypatch):
+    actual_reference = reference(2025)
+    actual_reference['annual_percent'] = '1.48841591086168'
+    monkeypatch.setattr(ai, 'inflation', lambda year: actual_reference)
+    result = ai.execute_tool('budget_external_review',
+        {'start': '2026-11-01', 'end': '2026-11-30', 'inflation_year': 2025}, 2)
+    assert result['flow']['income'] == '6000.00' and result['flow']['expense'] == '1400.00'
+    assert result['flow']['net_savings'] == '500.00'
+    assert result['margin_after_savings'] == result['flow']['available'] == '4100.00'
+    candidate = ('En noviembre ingresaron Q6,000.00 y pagaste Q1,400.00: el margen es Q4,600.00. '
+                 'La inflación anual del Banco Mundial fue 1,49 % para 2025.')
+    # Exact real failure: arithmetic that omits saving remains unsupported.
+    # The published annual percentage already rounded correctly; no guard bypass.
+    assert unsupported_amounts(candidate, [result]) == ['Q4,600.00']
+    corrected = ('Ingresaron Q6,000.00, pagaste Q1,400.00 y apartaste Q500.00 de ahorro neto: '
+                 'el margen registrado fue Q4,100.00. Inflación anual de 2025: 1,49 %.')
+    assert unsupported_amounts(corrected, [result]) == []
