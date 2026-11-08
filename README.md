@@ -38,7 +38,10 @@ Abrir [la aplicación local](http://localhost:8000) y
 [Swagger local](http://localhost:8000/docs). El arranque aplica las migraciones.
 El seed crea cuentas, servicios y datos básicos; `demo` amplía explícitamente
 el escenario local de Ana; `knowledge` indexa las guías educativas Markdown.
-Las importaciones son idempotentes y no equivalen a publicar código.
+Las importaciones son idempotentes y no equivalen a publicar código. Esta receta
+crea datos solo en la base local: no sincroniza automáticamente la cuenta Ana
+con Neon. El despliegue actualiza código y esquema; copiar registros financieros
+entre instalaciones es una operación independiente y controlada.
 
 Las cuentas iniciales son `admin@example.test`, `demo@example.test` y
 `bi@example.test`. Sus contraseñas son las elegidas en `.env`, que no deben
@@ -73,6 +76,12 @@ se puede ejecutar `npm test` y `npm run build` por separado.
 resultados fechados y el estado de CI/cloud se consultan en `docs/estado.md`;
 un número anterior de pruebas no acredita una publicación posterior.
 
+La implementación final acreditada pasó **417 pruebas backend y 106
+subpruebas**, **14 frontend**, **63 comprobaciones locales**, **65 cloud de
+lectura** y **31 de congelación**. La [matriz del enunciado](docs/cumplimiento.md)
+registra 15 criterios comprobados con sus límites y evidencia; no certifica toda
+respuesta posible del modelo.
+
 ## Cuentas, administración y datos
 
 El acceso permite **Crear cuenta** con correo y contraseña de 12 a 128
@@ -101,7 +110,10 @@ primer día del mes y sus ediciones no reescriben instancias anteriores.
 
 Los tres asistentes usan instrucciones versionadas, un corpus recuperable por
 búsqueda textual de PostgreSQL y herramientas de lectura con usuario fijado en
-el servidor. No hay embeddings, servicio vectorial ni SQL libre del modelo.
+el servidor. El recorrido general carga la guía `00`; dos recorridos externos
+acotados usan instrucciones específicas compactas de `external_system` y
+herramientas compuestas para resolver lectura/cálculos/fuente externa en dos
+inferencias cuando la petición está completa. No hay embeddings, servicio vectorial ni SQL libre del modelo.
 Los cálculos se realizan en el backend. Las fuentes externas disponibles son
 inflación anual de Guatemala en Banco Mundial y referencia USD/GTQ en Banguat.
 Ver [catálogo y contratos](docs/agentes/README.md).
@@ -137,7 +149,9 @@ páginas bajo un mismo corte `as_of`. Los filtros iniciales cubren noviembre de
 
 Para incorporar nuevas consultas hay que **actualizar el modelo semántico**,
 esperar que termine y refrescar la vista. Un PBIX descargado y un PDF existente
-no se actualizan automáticamente; sus cortes se documentan en `estado.md`.
+no se actualizan automáticamente; sus cortes se documentan en `estado.md`. El
+cierre del 8/11 compara 9 solicitudes, 22 llamadas y 17.495 tokens; el PDF final
+tiene 12 páginas y el PBIX incluye informe y modelo verificados desde Ubuntu.
 
 - [Informe técnico y evidencias PDF](output/pdf/Informe_Saldo_Academico.pdf).
 - [Power BI con informe y modelo PBIX](powerbi/Saldo_Consultas_y_Consumo.pbix).

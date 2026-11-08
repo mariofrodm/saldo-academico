@@ -68,8 +68,12 @@ Render para la publicación. Fabric no interviene en el backend.
 
 La [guía de funcionamiento](como-funciona.md) desarrolla el recorrido de un
 registro financiero, una pregunta, cada agente y la importación Power BI. Las
-instrucciones centrales viven en `backend/agent_docs/00_instrucciones.md`; las
-guías restantes se importan por fragmentos al corpus. La recuperación es textual
+instrucciones generales viven en `backend/agent_docs/00_instrucciones.md`; las
+guías restantes se importan por fragmentos al corpus. Los dos recorridos
+externos acotados usan `external_system` con reglas específicas compactas y
+referencias estructuradas, sin enviar la guía `00` completa. Las herramientas
+compuestas reúnen lectura/cálculo/consulta externa entre una inferencia de
+selección y otra de explicación. La recuperación es textual
 nativa de PostgreSQL, sin embeddings ni entrenamiento del modelo.
 
 El frontend puede solicitar `local_only` durante una espera para obtener una

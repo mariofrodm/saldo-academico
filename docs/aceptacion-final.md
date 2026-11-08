@@ -108,7 +108,10 @@ Elegir **Analiza tu presupuesto**; nueva conversación entre casos.
 | IA10 | Consulta mis ingresos, gastos, ahorro y disponible de octubre de 2026. Consulta la inflación anual de Guatemala de 2025 en Banco Mundial. Explica la diferencia de períodos y cita las fuentes y la fecha de consulta. | Q7.250/Q7.177/Q0/Q73, consulta interna y herramienta externa `inflation`. Año publicado, fuente y fecha. No presentar inflación 2025 como inflación mensual ni pronóstico. |
 
 IA10 es el recorrido académico de agente con fuente externa. En Historial debe
-verse selección de herramientas, sus resultados y varias llamadas al proveedor.
+verse la herramienta compuesta `budget_external_review` o los pasos separados
+de flujo e inflación, sus resultados y llamadas al proveedor. El recorrido
+compuesto puede resolver la selección y explicación en dos inferencias; no
+exigir artificialmente muchas rondas para considerar que hubo varios pasos.
 Si la API externa falla, reconocerlo es correcto como manejo de error, pero la
 prueba completa de integración queda pendiente hasta obtener un dato válido.
 
@@ -133,8 +136,9 @@ Elegir **Explora tus metas**.
    > Consulta el Fondo de emergencia y su saldo actual. Consulta la referencia USD/GTQ de Banguat. Simula seis meses aportando 750 GTQ mensuales y seis meses aportando 500 GTQ mensuales. Resume ambos saldos finales, si alcanzan la meta, fuentes y fecha.
 
    Partiendo de Q550: Q5.050 y Q3.550; el primero alcanza Q5.000 y el segundo
-   no. Historial: lectura de meta, `exchange_rate` y dos cálculos con
-   `simulate_goal` o `savings_plan`. La tasa y fecha deben proceder de la
+   no. Historial: lectura de meta, Banguat y dos cálculos. Pueden figurar en el
+   resultado de `goal_external_scenarios` (acciones y referencias) o como pasos
+   separados `exchange_rate`, `simulate_goal` o `savings_plan`. La tasa y fecha deben proceder de la
    consulta de Banguat, no de una cifra fijada en esta guía. No opera cambio real.
 
 3. Volver a metas y al tablero: ninguna simulación debe haber creado pagos o aportes.

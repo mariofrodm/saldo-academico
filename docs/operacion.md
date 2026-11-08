@@ -100,3 +100,19 @@ PDF desde un manifest nuevo, sin reutilizar implícitamente métricas/capturas
 anteriores. `--require-final` exige release del mismo SHA, pruebas, actualización
 BI, totales, archivo y capturas; esos checks verifican presencia y coherencia
 del manifest, no reemplazan la revisión factual de sus evidencias.
+
+## Corte de preparación de la exposición - 8/11/2026
+
+La aceptación final dejó Ana local en 65.705/100.000 tokens acumulados y cero
+reservas, con 97.725/100.000 del día local compartido. Ana cloud conserva
+17.495/20.000; son instalaciones distintas. No se reiniciaron ni ampliaron
+cuotas. Antes de otra demostración, comprobar ambos márgenes: la renovación de
+día UTC a las 18:00 Guatemala no renueva la cuota personal. Administración puede
+asignar hasta 100.000 acumulados por usuario, pero ese permiso no añade créditos
+a Groq ni debe confundirse con la copia pendiente de datos financieros.
+
+El reporte final cloud/PBIX es 9 solicitudes, 22 llamadas y 17.495 tokens. Una
+consulta posterior cambiará ese corte y requerirá actualizar el modelo y volver
+a contrastar/descargar los archivos si se desea entregar otro corte. El
+protótipo puede seguir mostrando datos financieros y recorridos calculados sin
+consumir proveedor; para inferencia real hace falta margen suficiente.

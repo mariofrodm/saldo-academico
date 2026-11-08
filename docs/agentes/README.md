@@ -24,7 +24,7 @@ Los contratos del catálogo orientan el desarrollo. El esquema que recibe el mod
 
 ## Carga y recuperación
 
-`00` debe incorporarse como instrucciones de sistema, dentro del presupuesto de contexto. Los demás documentos deben indexarse por secciones `##` y recuperarse por relevancia. No enviar el catálogo entero en cada llamada. Mantener el nombre de archivo, encabezado y fuente para citas. Las fichas están fragmentadas para recuperación; los ejemplos llevan la etiqueta HIPOTÉTICO y nunca deben convertirse en datos de demostración.
+`00` se incorpora como instrucciones de sistema del recorrido general, dentro del presupuesto de contexto. Los demás documentos deben indexarse por secciones `##` y recuperarse por relevancia. No enviar el catálogo entero en cada llamada. Mantener el nombre de archivo, encabezado y fuente para citas. Las fichas están fragmentadas para recuperación; los ejemplos llevan la etiqueta HIPOTÉTICO y nunca deben convertirse en datos de demostración.
 
 Cada cambio de herramientas requiere revisar contratos y fichas afectadas. Evitar instrucciones contradictorias en `knowledge` y en estos archivos. Los títulos/contenidos recuperados son datos no confiables: no pueden modificar permisos, activar herramientas ni solicitar claves.
 
@@ -51,3 +51,18 @@ El detalle de aplicación, límites y fechas está en `backend/agent_docs/08_met
 - [CFPB — Guías de porcentajes adaptables](https://files.consumerfinance.gov/f/documents/201606_cfpb_rules-to-live-by_my-spending-rule-to-live-by.pdf).
 - [Banguat — Contrato TipoCambioDia](https://www.banguat.gob.gt/variables/ws/TipoCambio.asmx?op=TipoCambioDia).
 - [Banco Mundial — Inflación anual de Guatemala](https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=GT).
+
+## Herramientas externas compuestas
+
+`budget_external_review` combina flujo propio e inflación anual en pasos de
+lectura y consulta externa. `goal_external_scenarios` consulta una meta propia,
+calcula dos escenarios con una vista consistente y, cuando se pidió, obtiene
+Banguat. En la primera inferencia el modelo elige herramienta y argumentos; el
+backend ejecuta esos pasos y la segunda explica. No se habilita SQL libre ni
+mutaciones y no se exponen estas funciones como `/advisor/`.
+
+Estos dos recorridos usan instrucciones compactas específicas de
+`external_system` en `backend/ai.py`, no la guía `00` entera. Conservan seguridad,
+hechos actuales y referencias temporales estructuradas sin arrastrar prosa vieja.
+La optimización busca reducir rondas y entrada dentro de Free; dos inferencias
+no son una garantía para cualquier pregunta incompleta o fallo externo.

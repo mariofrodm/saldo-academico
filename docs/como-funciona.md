@@ -21,7 +21,8 @@ sus fuentes y su consumo quedan en el historial. Power BI importa las
 solicitudes de la API publicada para mostrar el mismo reporte de uso. GitHub
 conserva el código y solo publica en Render después de aprobar las pruebas.
 
-Local y nube son copias separadas. La nube usa Render para ejecutar, Neon para
+Local y nube son copias separadas y no sincronizan automáticamente sus
+registros. La nube usa Render para ejecutar, Neon para
 guardar, Groq para inferir y Microsoft para el informe. Ubuntu administra todo
 por Docker, terminal y navegador. Ninguno de esos servicios recibe por defecto
 acceso a los demás: la API conecta los componentes con credenciales privadas.
@@ -151,8 +152,13 @@ filas al modelo.
 
 ### Instrucciones frente a documentación recuperada
 
-`backend/agent_docs/00_instrucciones.md` contiene reglas de comportamiento que
-carga el servidor. Las demás guías explican gastos, deudas, ahorro, contexto y
+`backend/agent_docs/00_instrucciones.md` contiene las reglas de comportamiento
+que carga el recorrido general del RAG y de los asistentes. Los dos recorridos
+externos acotados usan una excepción explícita: `external_system` en
+`backend/ai.py` construye instrucciones específicas y compactas, con aislamiento,
+validación de herramientas, fechas, límites y atribución de la fuente. No envía
+la guía `00` completa ni respuestas antiguas de la conversación en esos casos;
+utiliza referencias temporales estructuradas y hechos propios recién consultados. Las demás guías explican gastos, deudas, ahorro, contexto y
 consultas disponibles. `python -m backend.knowledge` divide esas guías en
 fragmentos e importa o actualiza su contenido en PostgreSQL. Puede repetirse
 sin duplicar indefinidamente las fuentes gestionadas; conserva las fuentes
@@ -195,6 +201,31 @@ No todas las preguntas necesitan datos externos. Consultar Banguat para
 comparar dos gastos GTQ introduciría trabajo innecesario. Para demostrar los
 dos agentes con fuentes externas se utilizan preguntas expresas de inflación
 y referencia cambiaria, además de los cálculos internos.
+
+### Recorridos externos en dos inferencias
+
+Para evitar que una sola consulta multipaso necesite repetir mucho contexto,
+existen dos herramientas compuestas:
+
+- `budget_external_review`: valida el período y el año, consulta el flujo propio
+  en una transacción de lectura y obtiene la inflación anual de Banco Mundial.
+  El año externo y las fechas de los movimientos se mantienen independientes.
+- `goal_external_scenarios`: valida la meta propia elegida, consulta su saldo en
+  una lectura consistente, calcula los dos escenarios con `savings_plan` y
+  consulta Banguat solo si se pidió esa referencia. Conserva las acciones
+  ejecutadas y la diferencia calculada.
+
+El modelo elige la herramienta y sus argumentos en la primera inferencia; el
+backend ejecuta varios pasos controlados y devuelve los resultados. La segunda
+inferencia los explica. No son herramientas paralelas ni un texto fijo que
+reemplace la elección del modelo. La intención es resolver ese recorrido en dos
+inferencias cuando los datos elegidos son suficientes; una pregunta incompleta
+puede requerir aclaración. Los límites de rondas y cuota siguen vigentes.
+
+Estas herramientas compuestas son internas a la coordinación de IA: no se
+ofrecen como endpoints `/advisor/` ni permiten acceder a otro usuario. Los pasos
+y la procedencia externa se conservan en Historial. La guía y los flujos comunes
+siguen disponibles para preguntas que no corresponden a esas dos peticiones.
 
 ### Ejemplo de presupuesto
 

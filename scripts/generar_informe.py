@@ -252,6 +252,7 @@ def make_report(manifest, destination, require_final=False):
     verified = bi.get('status') in ('verified', 'complete', 'completado', 'verificado')
     pbix = resolve(bi.get('pbix_path'))
     screenshots = manifest.get('screenshots', {})
+    captions = manifest.get('captions', {})
     if require_final:
         required = ('date', 'commit', 'ci_url', 'tests_passed', 'model')
         if any(not manifest.get(key) for key in required):
@@ -288,6 +289,7 @@ def make_report(manifest, destination, require_final=False):
            f'Pruebas backend: {tests_label}. ' +
            ('Power BI verificado; el archivo PBIX forma parte de esta entrega.' if verified else
             'Power BI pendiente de acreditar para esta revisión.')),
+         p(manifest.get('status_note', ''), 'small'),
          p(f'Corte del informe: {review_date}. Fecha de entrega indicada en la consigna: 10 de noviembre. Los registros de demostración son ficticios.', 'small'),
          p(f'<b>Aplicación:</b> <link href="{text(app_url)}" color="#087E83">{text(app_url)}</link><br/>'
            f'<b>Repositorio:</b> <link href="{repo_url}" color="#087E83">{repo_url}</link>', raw=True),
@@ -312,26 +314,23 @@ def make_report(manifest, destination, require_final=False):
          p('La pregunta recupera corpus activo mediante búsqueda textual española de PostgreSQL y movimientos propios relevantes. Las guías Markdown se fragmentan e indexan explícitamente; no hay embeddings ni entrenamiento propio. Se conservan hasta seis intercambios completos y referencias verificadas, dentro de un presupuesto acotado. El chat responde en lenguaje natural; fuentes y herramientas se revisan en Historial. Cuando falta información debe reconocerla.'),
          p('Ejemplo de cálculo: una obligación de Q900 con un abono de Q400 deja Q500 pendientes. La base conserva obligación y pago por separado; el acceso a movimientos ajenos se excluye antes de construir el contexto. La documentación educativa es contexto, no una autorización de acceso.'),
          p('Agente presupuesto · combinación de información', 'h2'),
-         p('Las herramientas financieras consultan ingresos, pagos y aportes netos por período. inflation obtiene el indicador anual FP.CPI.TOTL.ZG de Guatemala en Banco Mundial cuando la pregunta lo requiere. El agente combina los resultados y distingue el período financiero del año externo disponible. Un año sin publicación produce una ausencia explícita; no se inventa inflación mensual.'),
+         p('budget_external_review reúne flujo propio e inflación anual de Guatemala (FP.CPI.TOTL.ZG, Banco Mundial). El modelo elige sus argumentos y el backend ejecuta pasos de lectura y consulta externa; una segunda inferencia explica. El período financiero y el año externo se validan por separado. Si el dato no está publicado se informa; no se inventa inflación mensual.'),
          p('Agente metas · consulta y simulaciones', 'h2'),
-         p('goal_snapshot recupera metas propias; exchange_rate consulta la referencia USD/GTQ de Banguat; savings_plan y simulate_goal calculan escenarios con Decimal. El usuario elige meta, aporte y plazo; una simulación no modifica saldos. La referencia cambiaria no es una tasa garantizada por un banco. Las ejecuciones reales de la revisión deben constar en su manifest y evidencias.'),
+         p('goal_external_scenarios consulta la meta propia elegida, calcula dos escenarios con Decimal y obtiene Banguat si se pidió. El modelo selecciona la herramienta y los argumentos; el backend realiza esos pasos secuenciales y la segunda inferencia explica. No modifica saldos ni promete asequibilidad. La referencia cambiaria no es una tasa bancaria garantizada.'),
          table(['Fuente', 'Dato y tratamiento'], [
              ['PostgreSQL / corpus', 'Registros propios y guía educativa administrada; fuentes y resultados recuperables desde Historial.'],
              ['Banco Mundial', 'Inflación anual de Guatemala, con año, disponibilidad y procedencia. No convertirla a inflación mensual ni usarla como predicción.'],
              ['Banguat', 'Referencia diaria USD/GTQ con fecha devuelta por la fuente. No es una tasa garantizada de liquidación bancaria.'],
          ], [116, CONTENT_W-116])])
+    cloud_rows = []
     if cloud:
-        cloud_rows = []
         for key, label in [('rag', 'RAG'), ('budget', 'Presupuesto'), ('goals', 'Metas')]:
             verification = cloud.get(key, {}).get('verified', {})
             if verification:
                 cloud_rows.append([label, str(verification.get('provider_calls', '')),
                                    str(verification.get('total_tokens', '')), verification.get('request_status', '')])
-        if cloud_rows:
-            add([p('Integración real en HTTPS', 'h2'), table(['Servicio', 'Rondas', 'Tokens', 'Estado'], cloud_rows, [145, 90, 90, CONTENT_W-325]),
-                 p(f'Ensayo cloud declarado en evidencia del corte {review_date}. Los fallos y las consultas con información insuficiente también permanecen en historial y consumo.', 'small')])
     add([p('Control de ejecución', 'h2'),
-         p('Herramientas de lectura en lista permitida por servicio, argumentos validados, tiempos máximos y hasta seis rondas. Las instrucciones centrales son breves y los esquemas se seleccionan según la petición. Algunas consultas sencillas usan respuestas calculadas sin Groq. La memoria y los detalles opcionales se compactan preservando pregunta, fechas, reglas y totales. Un límite sin resultado final queda registrado; no se inventa una respuesta de proveedor.'),
+         p('Herramientas de lectura en lista permitida por servicio, argumentos validados, tiempos máximos y hasta seis rondas. El recorrido general carga la guía 00 versionada. Los dos recorridos externos usan external_system específico y compacto, con referencias verificadas y hechos recién consultados, sin enviar la guía completa ni prosa vieja. Los esquemas se seleccionan según la petición. Algunas consultas sencillas usan respuestas calculadas sin Groq. La memoria y los detalles opcionales se compactan preservando pregunta, fechas, reglas y totales. Un límite sin resultado final queda registrado; no se inventa una respuesta de proveedor.'),
          p('El contenido generado puede variar entre ejecuciones. Las fuentes y resultados de herramientas quedan persistidos para revisar sus afirmaciones; una respuesta natural no equivale por sí sola a una validación factual.', 'small'), PageBreak()])
 
     # 4. ER de dominio.
@@ -381,7 +380,7 @@ def make_report(manifest, destination, require_final=False):
          p('El workflow ejecuta backend y construcción/arranque del contenedor en jobs separados. Deploy requiere éxito de ambos, push a main y habilitación explícita. Render tiene auto-deploy apagado; GitHub solicita el commit exacto mediante ref=SHA y espera disponibilidad con ese mismo SHA y base accesible.'),
          p(f'Commit de implementación: {commit or "Pendiente de acreditar"}. Estado de publicación: {"verificado" if released else "pendiente"}.', 'small'),
          p(f'<link href="{text(ci_url)}" color="#087E83">Ejecución CI/CD completa en GitHub Actions</link>', raw=True),
-         *image_block(screenshots.get('ci'), 'Figura 4. Evidencia de pruebas y despliegue satisfactorios en la misma ejecución.', 225),
+         *image_block(screenshots.get('ci'), captions.get('ci', 'Figura 4. Evidencia de pruebas y despliegue satisfactorios en la misma ejecución.'), 225),
          table(['Servicio / plan', 'Condición de operación'], [
              ['Render Free', 'Contenedor 512 MB. Puede dormir tras inactividad; abrir antes de la demostración. No usar pings artificiales para evitar la suspensión.'],
              ['Neon Free', 'Persistencia PostgreSQL y suspensión por inactividad; cuota finita. TLS verify-full en conexión directa y agrupada.'],
@@ -392,7 +391,7 @@ def make_report(manifest, destination, require_final=False):
 
     # 8. Evidencia aplicación y reportería.
     add(heading(8, 'Aplicación publicada y API', 'La evidencia corresponde al entorno declarado en el manifest; no se reutilizan capturas locales como publicación.'))
-    add([*image_block(screenshots.get('app'), 'Figura 5. GUI de Saldo publicada por HTTPS. El usuario consulta finanzas y accede a metas, asistentes, historial y consumo.', 265 if screenshots.get('web_report') else 290),
+    add([*image_block(screenshots.get('app'), captions.get('app', 'Figura 5. GUI de Saldo publicada por HTTPS. El usuario consulta finanzas y accede a metas, asistentes, historial y consumo.'), 265 if screenshots.get('web_report') else 290),
          p('Consulta y consumo: mismas reglas en web y Power BI', 'h2'),
          p('GET /api/v1/reports/usage entrega una fila por solicitud y agrega todas sus llamadas. GET /api/v1/reports/summary resume por servicio. Filtros de fecha en America/Guatemala, usuario según permisos y servicio. Un único as_of congela el corte y excluye solicitudes que terminaron después.'),
          p('La consulta Power Query recorre next_cursor hasta agotar páginas con el mismo corte. Contar filas mide preguntas; sumar provider_calls mide rondas. Los tokens de entrada y salida se suman una sola vez por llamada.'),
@@ -401,8 +400,8 @@ def make_report(manifest, destination, require_final=False):
              ['Cliente externo', 'docs/postman.json; login Bearer, servicios IA, historial y reportes. Credenciales introducidas de forma privada.'],
              ['Persistencia', 'Cambios y consumo en Neon, independientes del disco efímero de Render.'],
          ], [112, CONTENT_W-112])])
-    if screenshots.get('web_report'):
-        add(image_block(screenshots['web_report'], 'Figura 6. Reporte web de consultas y tokens utilizado en el contraste con Power BI.', 115))
+    if screenshots.get('web_report') and screenshots.get('web_report') != screenshots.get('app'):
+        add(image_block(screenshots['web_report'], captions.get('web_report', 'Figura 6. Reporte web de consultas y tokens utilizado en el contraste con Power BI.'), 115))
     add([PageBreak()])
 
     # 9. Evidencia BI: cambia únicamente por manifest, nunca inventa resultados.
@@ -410,7 +409,7 @@ def make_report(manifest, destination, require_final=False):
     if verified:
         add([p('Conexión HTTPS, actualización y contraste verificados', 'h2'),
              p(bi.get('comparison', 'Se contrastaron los totales del reporte con los endpoints del proyecto utilizando el mismo alcance y corte de datos.')),
-             *image_block(screenshots.get('powerbi', bi.get('screenshot')), 'Figura 7. Informe definitivo de consultas y consumo conectado a la API de Saldo.', 205)])
+             *image_block(screenshots.get('powerbi', bi.get('screenshot')), captions.get('powerbi', 'Figura 7. Informe definitivo de consultas y consumo conectado a la API de Saldo.'), 205)])
         totals = bi.get('totals', {})
         if totals:
             names = [('requests', 'Solicitudes'), ('provider_calls', 'Llamadas al proveedor'), ('input_tokens', 'Tokens de entrada'), ('output_tokens', 'Tokens de salida'), ('total_tokens', 'Tokens totales')]
@@ -425,7 +424,7 @@ def make_report(manifest, destination, require_final=False):
             add([p(f'<link href="{text(bi["report_url"])}" color="#087E83">Abrir informe en Power BI (cuenta institucional)</link>', raw=True)])
     else:
         add([p('Estado: integración definitiva todavía en proceso', 'h2'),
-             p('Las pruebas anteriores demostraron la importación de una API HTTPS con Basic y la descarga de PBIX desde Power BI web. Esos archivos de diagnóstico no sustituyen al reporte conectado a Saldo.'),
+             p('La integración anterior ya consumió la API Saldo por HTTPS con Basic y permitió descargar un PBIX completo desde la web. Ese archivo acredita su corte histórico; falta actualizar y contrastar la revisión nueva antes de considerarlo definitivo.'),
              p('Para cerrar este requisito deben constar: actualización desde la URL publicada, filtros por fecha/servicio, contraste numérico con web/API y archivo PBIX completo descargado. Este borrador no marca el requisito como completado.'),
              table(['Validación requerida', 'Criterio de aceptación'], [
                  ['Origen y permisos', 'La URL es la API Saldo HTTPS; la cuenta BI solo consulta reportes.'],
@@ -433,6 +432,11 @@ def make_report(manifest, destination, require_final=False):
                  ['Coincidencia', 'Consultas, rondas y tokens coinciden por servicio y fecha.'],
                  ['Archivo entregable', 'PBIX exportado con informe y modelo; sin credenciales publicadas.'],
              ], [140, CONTENT_W-140])])
+        if screenshots.get('powerbi'):
+            add([Spacer(1, 8)])
+            add(image_block(screenshots['powerbi'], bi.get('draft_caption', 'Captura de diagnóstico anterior: no acredita el contraste final de esta revisión.'), 195))
+    for note in bi.get('limitations', []):
+        add([p(str(note), 'small')])
     add([PageBreak()])
 
     # 10. Operación y trazabilidad compacta.
@@ -444,8 +448,6 @@ def make_report(manifest, destination, require_final=False):
          p(manifest.get('restore_summary', 'Recuperación: generar un respaldo privado y comprobarlo en una base nueva, preservando la original. Usar herramientas y destino compatibles con la versión de PostgreSQL. Las evidencias de restauración y revisión de esquema se registran por separado; no se asume que un dump 18 se restaure en 17.'), 'small'),
          p('Power BI y continuidad desde Windows', 'h2'),
          p('El desarrollo, Docker, CI/CD y gestión cloud se realizaron desde Ubuntu. Power BI web completó el informe y su exportación. Si se necesita Desktop, Windows ya licenciado puede abrir el PBIX y consumir la misma API HTTPS con la cuenta BI; no es necesario trasladar el backend o Neon.', 'small')])
-    for note in bi.get('limitations', []):
-        add([p(str(note), 'small')])
     add([
          table(['Criterios de la consigna', 'Artefacto o evidencia'], [
              ['A01 · propuesta/arquitectura', 'Este informe; docs/alcance.md, arquitectura.md y como-funciona.md.'],
@@ -464,6 +466,33 @@ def make_report(manifest, destination, require_final=False):
            f'<link href="{text(app_url)}/docs" color="#087E83">Swagger de la API publicada</link> · '
            f'<link href="{repo_url}" color="#087E83">Repositorio y configuración reproducible</link>', 'small', raw=True),
          p('Guía sencilla completa: docs/como-funciona.md. Recorrido de exposición: docs/guion-demostracion.md. Instalación y recuperación: README.md y docs/portabilidad.md. Operación posterior: revisar cuotas y fechas; retirar los accesos temporales al terminar. La entrega contiene datos ficticios y no incorpora secretos.', 'small')])
+    if screenshots.get('local_finances'):
+        add([PageBreak()])
+        add(heading(11, 'Recorrido de los datos', 'El mismo backend valida registros, calcula hechos, coordina la IA y entrega el reporte.'))
+        add([p('Del formulario al informe', 'h2'),
+             p('React envía un registro autenticado; FastAPI valida propiedad, fecha y monto y PostgreSQL lo conserva. Al preguntar, la API recupera guías y hechos propios. Una consulta calculada responde sin modelo; una consulta abierta reserva cuota y usa Groq con herramientas permitidas. Respuesta, fuentes, pasos y tokens quedan en el historial. La API de reportes agrega ese consumo y Power BI importa una copia con corte estable.'),
+             *image_block(screenshots['local_finances'], captions.get('local_finances', 'Figura 8. Escenario local ampliado de Ana: noviembre Q6.000 de ingresos, Q2.277 de pagos, Q1.275 de ahorro neto y Q2.448 de flujo. No es la base cloud ni el origen del Power BI publicado.'), 285),
+             p('Dos instalaciones y un alcance explícito', 'h2'),
+             p('El código puede ser el mismo en Ubuntu y Render, pero sus bases son independientes. Publicar no copia los registros locales. Cloud conserva la semilla financiera mientras la copia ampliada de Ana espera confirmación específica; su reporte Power BI sí incluye las consultas cloud contrastadas. El manual distingue preguntas y cifras de cada instalación.'),
+             table(['Capa', 'Datos y acceso'], [
+                 ['Finanzas', 'Obligaciones, pagos, metas y movimientos propios. Cálculos Decimal; sin operaciones bancarias.'],
+                 ['Asesor', 'Guía general versionada, recuperación textual y herramientas de lectura. Flujos externos específicos con instrucciones compactas.'],
+                 ['Historial y BI', 'Solicitudes, herramientas y llamadas persistidas; API HTTPS paginada y cuenta BI de lectura.'],
+             ], [112, CONTENT_W-112])])
+    if cloud_rows:
+        add([PageBreak()])
+        add(heading(12, 'Pruebas reales del asesor', 'Las cifras siguientes corresponden a ejecuciones concretas y no certifican todas las formulaciones posibles.'))
+        add([table(['Servicio cloud', 'Llamadas', 'Tokens', 'Resultado observado'], cloud_rows, [110, 60, 60, CONTENT_W-230]),
+             p(manifest.get('ai_validation_note', 'Los fallos y las consultas con información insuficiente también permanecen en historial y consumo. Los cálculos y las recomendaciones se revisan por separado.')),
+             p('Fuentes externas y cálculos comprobados', 'h2'),
+             p('Banco Mundial devolvió inflación anual Guatemala 2025 de 1,48841591086168 %. Banguat devolvió referencia 7,64243 GTQ/USD con fecha 8/11/2026. No se convirtieron en inflación mensual, rendimiento ni tasa bancaria garantizada.'),
+             p('En cloud la meta parte de Q500: seis aportes de Q500 producen Q3.500 y seis de Q750 producen Q5.000. En el ensayo local final parte de Q550: los mismos escenarios producen Q3.550 y Q5.050. La diferencia procede de bases distintas, no de un cambio de fórmula.'),
+             p('Qué protege la versión final', 'h2'),
+             p('Las herramientas solo leen datos propios y hacen la aritmética. La guarda numérica contrasta importes y la barrera de capacidad evita presentar el flujo registrado como dinero libre para comprometer. Si falta calendario, mínimos o condiciones contractuales, se explican las ausencias. Una proyección no registra un pago ni demuestra asequibilidad.'),
+             p('Límites de la aceptación', 'h2'),
+             p('El candidato real de presupuesto y el ensayo anterior de metas motivaron correcciones de redacción y regresiones con los textos archivados. El ensayo de metas con instrucciones finales se repitió con IA real en local; no se ocultaron ni descontaron los consumos anteriores. Las fuentes y pasos quedan disponibles en Historial.'),
+             p('Las pruebas automatizadas usan proveedores simulados; su éxito no promete disponibilidad externa permanente. La demostración debe revisar las cuotas y el entorno elegido antes de comenzar. La copia ampliada de Ana a la nube sigue separada y pendiente de confirmación.'),
+             p('Evidencia detallada privada: cierre-20261108; guía pública de reproducción y aceptación en docs/. No se publican contraseñas, claves ni respaldos.', 'small')])
     destination.parent.mkdir(parents=True, exist_ok=True)
     doc = BaseDocTemplate(str(destination), pagesize=A4, leftMargin=46, rightMargin=46,
                           topMargin=41, bottomMargin=57, title='Saldo - Informe técnico académico',

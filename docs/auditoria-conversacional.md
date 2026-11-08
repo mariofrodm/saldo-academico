@@ -338,7 +338,7 @@ cloud de estos cambios**.
 ## Ajustes de cierre posteriores
 
 Las cifras y conclusiones de cada fase anterior son históricas. El cierre del
-8/11 compactó `00_instrucciones.md` como fuente de reglas de ejecución y retiró
+8/11 compactó `00_instrucciones.md` como fuente de reglas del recorrido general y retiró
 repeticiones del prompt; conserva las fuentes recuperadas también en el contexto
 compacto. Mantiene razonamiento medio, salida máxima 768 y los topes de cuotas.
 El contrato `local_only` permite respuestas calculadas o un resumen de flujo
@@ -353,3 +353,11 @@ La reserva total pasó de 4.160 a 3.295 (-20,79 %), conservando salida 768; no s
 porcentaje ni demuestra por sí sola la calidad de inferencias nuevas. La suite
 completa, publicación y contraste finales se consignan en `estado.md`. No sumar
 las pruebas dirigidas a la suite como si fueran casos adicionales.
+
+Después se añadieron herramientas externas compuestas elegidas por el modelo:
+`budget_external_review` y `goal_external_scenarios`. Ejecutan secuencialmente
+lecturas propias, cálculos y fuente pública antes de una segunda inferencia de
+explicación. Estos recorridos usan `external_system` específico y compacto; no
+se debe describir `00` como única fuente de reglas de toda ejecución. La
+aceptación real de la publicación optimizada y su consumo se registran en el
+cierre nuevo, sin reutilizar cifras históricas de rondas como si fueran actuales.
