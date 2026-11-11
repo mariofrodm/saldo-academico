@@ -52,14 +52,28 @@ def retrieve(user_id,query):
 
 
 def inflation(year:int):
-    if not 1960<=year<=date.today().year: raise ValueError('Año fuera de rango')
+    if type(year) is not int or not 1960<=year<=date.today().year: raise ValueError('Año fuera de rango')
     url='https://api.worldbank.org/v2/country/GTM/indicator/FP.CPI.TOTL.ZG'
     response=httpx.get(url,params={'format':'json','date':str(year)},timeout=15,follow_redirects=False)
     response.raise_for_status(); payload=response.json()
-    if not isinstance(payload,list) or len(payload)<2 or not payload[1] or payload[1][0].get('value') is None:
-        return {'available':False,'source':url,'year':year,'reason':'No hay dato anual publicado para ese período'}
-    return {'available':True,'annual_percent':str(payload[1][0]['value']),'year':year,
-            'source':url,'retrieved_at':datetime.now(timezone.utc).isoformat()}
+    metadata={'source':url,'year':year,'retrieved_at':datetime.now(timezone.utc).isoformat()}
+    absent={**metadata,'available':False,'reason':'No hay dato anual publicado verificable para ese período'}
+    if not isinstance(payload,list) or len(payload)<2 or not isinstance(payload[1],list) or not payload[1]:
+        return absent
+    row=payload[1][0]
+    # A preceding publication must never be relabelled as the requested year.
+    if (not isinstance(row,dict) or str(row.get('date'))!=str(year)
+        or row.get('countryiso3code','GTM')!='GTM'
+        or not isinstance(row.get('indicator',{}),dict)
+        or row.get('indicator',{}).get('id','FP.CPI.TOTL.ZG')!='FP.CPI.TOTL.ZG'
+        or row.get('value') is None or isinstance(row['value'],bool)):
+        return absent
+    try:
+        value=Decimal(str(row['value']))
+    except (InvalidOperation,TypeError,ValueError):
+        return absent
+    if not value.is_finite(): return absent
+    return {**metadata,'available':True,'annual_percent':str(value)}
 
 
 def exchange_rate():
@@ -72,7 +86,7 @@ def exchange_rate():
     ref=root.find('.//{*}VarDolar/{*}referencia'); stamp=root.find('.//{*}VarDolar/{*}fecha')
     if ref is None or not ref.text: raise ValueError('Sin referencia publicada')
     rate=Decimal(ref.text)
-    if not 0<rate<100: raise ValueError('Referencia inesperada')
+    if not rate.is_finite() or not 0<rate<100: raise ValueError('Referencia inesperada')
     return {'reference_gtq_per_usd':str(rate),'date':stamp.text if stamp is not None else None,
             'source':url,'kind':'Referencia, no tasa de liquidación de un banco'}
 
@@ -230,6 +244,8 @@ def external_system(context,prefetched,workflow):
     if workflow=='budget_external_review':
         rules+=('El período financiero y el año de inflación son independientes: respeta ambos explícitos. '
             'La inflación del Banco Mundial es anual; no equivale a inflación mensual ni a una tasa de otro año. '
+            'Si el año solicitado no tiene dato disponible, dilo sin sustituirlo silenciosamente por otro año. '
+            'No proyectes gastos aplicando la inflación ni inventes rendimientos: este resultado solo aporta flujo registrado y contexto anual. '
             'Si piden margen, usa margin_after_savings: ingresos menos pagos menos ahorro neto, ya calculado por el backend. '
             'Al explicarlo incluye el ahorro; no sustituyas ese margen por ingresos menos egresos. '
             'Disponible es flujo registrado, no saldo bancario ni capacidad confirmada para gastar. ')
@@ -238,7 +254,9 @@ def external_system(context,prefetched,workflow):
             'sin intereses ni rendimientos; no prueban asequibilidad ni que todos los aportes entren antes del vencimiento. '
             'Expresa el resultado como «tras N aportes, si puedes sostenerlos». No afirmes que cumple el plazo previsto o la fecha objetivo: '
             'no se comprobó un calendario de pagos ni disponibilidad de dinero. '
-            'USD/GTQ es referencia de Banguat, no tasa de liquidación ni conversión necesaria de importes GTQ. '
+            'Si piden equivalencias en dólares, usa únicamente los campos *_usd calculados por el backend, con US$ y dos decimales. '
+            'total_contributions son los aportes nuevos acumulados; projected_balance incluye el ahorro actual. No los confundas. '
+            'USD/GTQ es referencia de Banguat, no tasa de liquidación ni predicción de una tasa futura. '
             'Activa include_exchange_rate solo cuando la persona pide esa referencia. ')
     facts=[{'name':name,'result':result} for name,_,result in prefetched]
     temporal={'period_hint':context['period_hint'],'last_verified_period':context['state'].get('period'),
@@ -316,13 +334,26 @@ def execute_tool(name,args,user_id):
         if args['include_exchange_rate']:
             try:
                 reference=exchange_rate()
-            except (ValueError,TypeError,KeyError,httpx.HTTPError,ET.ParseError,OverflowError):
+            except (ValueError,TypeError,KeyError,InvalidOperation,httpx.HTTPError,ET.ParseError,OverflowError):
                 reference={'available':False,'source':'https://www.banguat.gob.gt/variables/ws/TipoCambio.asmx',
                            'retrieved_at':datetime.now(timezone.utc).isoformat(),'reason':'No se pudo obtener la referencia USD/GTQ'}
         first=scenarios[0]
+        rows=[{key:scenario[key] for key in ('months','proposed_monthly','projected_balance','gap_at_end','reaches_goal')} for scenario in scenarios]
+        for row in rows:
+            row['total_contributions']=money(row['proposed_monthly']*row['months'])
+        # Convert with the full published rate, never its rounded display value.
+        # Provider prose must not invent conversions or calculate intermediate sums.
+        if reference and reference.get('available') is not False:
+            rate=Decimal(str(reference['reference_gtq_per_usd']))
+            if not rate.is_finite() or not 0<rate<100:
+                raise ValueError('Referencia inesperada')
+            for row in rows:
+                row.update(monthly_usd=money(row['proposed_monthly']/rate),
+                           contributions_usd=money(row['total_contributions']/rate),
+                           projected_balance_usd=money(row['projected_balance']/rate))
         return clean({'source_id':'SGOAL_EXTERNAL','currency':'GTQ','as_of':first['as_of'],
                 'goal':first['goal'],'remaining':first['remaining'],'required_monthly':first['required_monthly'],
-                'scenarios':[{key:scenario[key] for key in ('months','proposed_monthly','projected_balance','gap_at_end','reaches_goal')} for scenario in scenarios],
+                'scenarios':rows,
                 'difference_gtq':money(abs(scenarios[1]['projected_balance']-scenarios[0]['projected_balance'])),
                 'schedule_checked':False,'affordability_checked':False,
                 'exchange_rate':reference,'actions':['savings_plan','savings_plan']+(['exchange_rate'] if args['include_exchange_rate'] else []),
@@ -432,6 +463,55 @@ def prefetch_facts(prompt,context,user_id,service=None):
 
 def unverified_response(prompt,results):
     """Answer conservatively when generated monetary claims lack evidence."""
+    for result in reversed(results):
+        if not isinstance(result,dict) or result.get('source_id')!='SBUDGET_EXTERNAL': continue
+        try:
+            flow=result['flow']
+            start,end=date.fromisoformat(flow['from']),date.fromisoformat(flow['to'])
+            amount=lambda key: 'Q'+format(Decimal(str(flow[key])),',.2f')
+            period=(f'{MONTHS[start.month-1]} de {start.year}' if start.year==end.year and start.month==end.month
+                    else f'{start.isoformat()} al {end.isoformat()}')
+            text=(f'En {period} registraste ingresos cobrados de {amount("income")}, pagos por '
+                  f'{amount("expense")} y ahorro neto de {amount("net_savings")}: el margen registrado fue '
+                  f'{amount("available")}. Es flujo registrado, no saldo bancario ni dinero confirmado para gastar.')
+            reference=result.get('inflation') or {}
+            if reference.get('available') is True:
+                value=Decimal(str(reference['annual_percent']))
+                note=(f'El Banco Mundial publicó una variación anual de precios de {money(value):.2f}% para '
+                      f'{reference["year"]}. Es contexto anual de Guatemala; no mide tus gastos personales '
+                      'ni predice los precios futuros.')
+                if reference.get('retrieved_at'):
+                    note+=f' Consultado el {reference["retrieved_at"][:10]}.'
+            else:
+                note=(f'No pude confirmar un dato anual de inflación del Banco Mundial para '
+                      f'{reference.get("year","el año solicitado")}; conservé el resumen de tus registros '
+                      'sin sustituirlo por la tasa de otro año ni inventar una proyección.')
+            return text+'\n\n'+note
+        except (ValueError,TypeError,KeyError,InvalidOperation):
+            continue
+    for result in reversed(results):
+        if not isinstance(result,dict) or result.get('source_id')!='SGOAL_EXTERNAL': continue
+        rows=result.get('scenarios',[])
+        if len(rows)!=2: continue
+        try:
+            amount=lambda value: 'Q'+format(Decimal(str(value)),',.2f')
+            statements=[]
+            for row in rows:
+                text=(f'Con {amount(row["proposed_monthly"])} mensuales, tras {row["months"]} aportes '
+                    f'sumarías {amount(row["total_contributions"])} nuevos y tu fondo llegaría a '
+                    f'{amount(row["projected_balance"])}')
+                if 'projected_balance_usd' in row:
+                    text+=f' (US${Decimal(row["projected_balance_usd"]):,.2f})'
+                statements.append(text+'.')
+            reference=result.get('exchange_rate')
+            note='Son escenarios sin rendimientos; requieren que puedas sostener los aportes y no garantizan cumplir la fecha objetivo.'
+            if reference and reference.get('available') is not False:
+                note+=f' Las equivalencias usan la referencia de Banguat del {reference["date"]}: Q{reference["reference_gtq_per_usd"]} por dólar, no una tasa bancaria ni futura.'
+            elif reference:
+                note+=' Banguat no estuvo disponible; conservé el cálculo en quetzales sin inventar el cambio a dólares.'
+            return ' '.join(statements)+'\n\n'+note
+        except (ValueError,TypeError,KeyError,InvalidOperation):
+            continue
     if 'quincena' in prompt.casefold():
         for result in results:
             if not isinstance(result,dict) or result.get('source_id')!='SDIAG': continue
@@ -703,7 +783,10 @@ def ask(service:str,body:Ask,user=Depends(current_user)):
                                exc.status_code==502 and str(exc.detail).startswith('La respuesta alcanzó el límite de salida'))
                 fallback=None
                 if can_summarize:
-                    fallback=verified_overview(verified_results)
+                    external_facts=[r for r in verified_results if isinstance(r,dict) and
+                                    r.get('source_id') in ('SBUDGET_EXTERNAL','SGOAL_EXTERNAL')]
+                    fallback=(unverified_response(body.prompt,external_facts) if external_facts
+                              else verified_overview(verified_results))
                 if not fallback: raise
                 answer=fallback
                 generated_with_model=False
@@ -765,6 +848,17 @@ def ask(service:str,body:Ask,user=Depends(current_user)):
                 messages.append({'role':'tool','tool_call_id':item['id'],'content':json.dumps(tool_context(result),ensure_ascii=False)})
                 if workflow and name==workflow:
                     available_tools=[]  # Its result contains every requested read/calculation; the next inference only explains it.
+        unavailable_external=[r for r in verified_results if isinstance(r,dict) and
+            ((r.get('source_id')=='SBUDGET_EXTERNAL' and isinstance(r.get('inflation'),dict) and r['inflation'].get('available') is False)
+             or (r.get('source_id')=='SGOAL_EXTERNAL' and isinstance(r.get('exchange_rate'),dict) and r['exchange_rate'].get('available') is False))]
+        if unavailable_external:
+            # Preserve the requested calculations when an optional public source
+            # is absent, even if the model only reports that source's outage.
+            answer=unverified_response(body.prompt,unavailable_external)
+            generated_with_model=False
+            with db() as conn:
+                conn.execute('INSERT INTO tool_runs(request_id,name,arguments,result) VALUES(%s,%s,%s,%s)',
+                    (request_id,'response_mode',Jsonb({}),Jsonb({'mode':'verified_summary','reason':'external_unavailable','provider_answer_used':False})))
         if not answer:
             raise HTTPException(422,'Se alcanzó el límite de pasos sin respuesta final. La solicitud y su consumo están en el historial; concreta la pregunta.')
         answer=natural_text(answer)

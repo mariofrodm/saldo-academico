@@ -1,6 +1,6 @@
 """Limited numeric grounding, not validation of financial advice or semantics.
 
-Checks explicit Q/GTQ amounts and percentages against typed financial fields in
+Checks explicit Q/GTQ and USD amounts and percentages against typed financial fields in
 current tool results and explicit user proposals. Matching numbers can still be
 assigned to the wrong period, category or conclusion; callers must not treat an
 empty result as a guarantee of correctness. No text is changed by this module.
@@ -21,7 +21,8 @@ MONEY_FIELDS = frozenset(('income', 'expense', 'net_savings', 'available', 'amou
     'monthly_required', 'proposed_monthly', 'projected_balance', 'gap_at_end',
     'extra_monthly_needed', 'difference_gtq', 'historical_margin', 'affordability_gap',
     'active_future_required', 'verified_affordable_contribution', 'total_pending',
-    'reference_gtq_per_usd'))
+    'reference_gtq_per_usd', 'total_contributions'))
+USD_FIELDS = frozenset(('monthly_usd', 'contributions_usd', 'projected_balance_usd'))
 SKIP_FIELDS = frozenset(('arguments', 'title', 'name', 'body', 'text', 'content', 'description',
     'prompt', 'response', 'instructions', 'constraints', 'source', 'error', 'reason', 'basis'))
 RAW_NUMBER = re.compile(r'-?\d+(?:\.\d+)?\Z')
@@ -29,6 +30,8 @@ NUMBER = (r'[-+−]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|'
           r'\d{1,3}(?:[ \u202f\u00a0]+\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d+)?)')
 PREFIX = re.compile(r'(?<!\w)(?P<sign>[-+−]?)(?:GTQ|Q)\s*(?P<number>'+NUMBER+r')')
 SUFFIX = re.compile(r'(?<![\w.,])(?P<number>'+NUMBER+r')\s*GTQ\b')
+USD_PREFIX = re.compile(r'(?<!\w)(?P<sign>[-+−]?)(?:US\$|USD|\$)\s*(?P<number>'+NUMBER+r')')
+USD_SUFFIX = re.compile(r'(?<![\w.,])(?P<number>'+NUMBER+r')\s*USD\b')
 PERCENT = re.compile(r'(?<![\w.,])(?P<number>[-+−]?\d+(?:[.,]\d+)?)\s*%')
 PROPOSAL = re.compile(r'\b(?:aporto|aportar|pongo|poner|ahorro|ahorrar)\s*(?P<number>\d+(?:[.,]\d{1,2})?)(?![\d.,])', re.I)
 
@@ -76,7 +79,7 @@ def _displayed(raw):
     # unambiguous Spanish decimal comma too, without guessing mixed separators.
     if re.fullmatch(r'[-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?', raw):
         raw = raw.replace(',', '')
-    elif re.fullmatch(r'[-+]?\d+,\d{1,2}', raw):
+    elif re.fullmatch(r'[-+]?\d+,\d+', raw):
         raw = raw.replace(',', '.')
     elif re.fullmatch(r'[-+]?\d{1,3}(?:[ \u202f\u00a0]+\d{3})+(?:[.,]\d{1,2})?', raw):
         raw = re.sub(r'[ \u202f\u00a0]', '', raw).replace(',', '.')
@@ -85,7 +88,7 @@ def _displayed(raw):
     return _rounded(raw)
 
 
-def _facts(value, money, percentages):
+def _facts(value, money, percentages, usd):
     if isinstance(value, Mapping):
         if value.get('available') is False or value.get('error') or value.get('status') in ('failed', 'error'):
             return
@@ -96,25 +99,29 @@ def _facts(value, money, percentages):
                 number = _rounded(child)
                 if number is not None:
                     money.add(number)
+            elif key in USD_FIELDS:
+                number = _rounded(child)
+                if number is not None:
+                    usd.add(number)
             elif key == 'annual_percent' or key.endswith('_percent'):
                 number = _exact_number(child)
                 if number is not None:
                     percentages.add(number)
             if isinstance(child, (Mapping, list, tuple)):
-                _facts(child, money, percentages)
+                _facts(child, money, percentages, usd)
     elif isinstance(value, (list, tuple)):
         # A prefetched tuple is (name, arguments, result). Its arguments are
         # proposals, not independent evidence for a provider-generated amount.
         if len(value) == 3 and isinstance(value[0], str) and isinstance(value[1], Mapping):
-            _facts(value[2], money, percentages)
+            _facts(value[2], money, percentages, usd)
         else:
             for child in value:
-                _facts(child, money, percentages)
+                _facts(child, money, percentages, usd)
 
 
 def _mentions(text):
     matches = [(match.start(), match.end(), kind, match) for kind, pattern in
-               (('money', PREFIX), ('money', SUFFIX), ('percent', PERCENT)) for match in pattern.finditer(text)]
+               (('money', PREFIX), ('money', SUFFIX), ('usd', USD_PREFIX), ('usd', USD_SUFFIX), ('percent', PERCENT)) for match in pattern.finditer(text)]
     spans = []
     for start, end, kind, match in sorted(matches, key=lambda row: (row[0], -row[1])):
         if any(start < previous_end and end > previous_start for previous_start, previous_end in spans):
@@ -145,14 +152,14 @@ def unsupported_amounts(answer, tool_results, user_messages=()):
     """
     if not isinstance(answer, str):
         return []
-    money, percentages = set(), set()
-    _facts(tool_results, money, percentages)
-    if not money and not percentages:
+    money, percentages, usd = set(), set(), set()
+    _facts(tool_results, money, percentages, usd)
+    if not money and not percentages and not usd:
         return []
     for text in _user_text(user_messages):
         for kind, value, _ in _mentions(text):
             if value is not None:
-                (money if kind == 'money' else percentages).add(value)
+                {'money':money,'usd':usd,'percent':percentages}[kind].add(value)
         for match in PROPOSAL.finditer(text):
             suffix = text[match.end():].lstrip()
             if suffix.startswith('%') or re.match(r'(?:USD\b|d[oó]lares\b|\$)', suffix, re.I):
@@ -162,7 +169,7 @@ def unsupported_amounts(answer, tool_results, user_messages=()):
                 money.add(value)
     unsupported = []
     for kind, value, original in _mentions(answer):
-        allowed = money if kind == 'money' else percentages
+        allowed = {'money':money,'usd':usd,'percent':percentages}[kind]
         supported = _supported_percentage(value, original, allowed) if kind == 'percent' else value is not None and value in allowed
         if not supported and original not in unsupported:
             unsupported.append(original)
