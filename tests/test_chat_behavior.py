@@ -56,7 +56,7 @@ def test_shared_limit_returns_recoverable_reference_and_retry_preserves_conversa
     period = 'minute:2026-11-08T16:25'
     with db() as conn:
         conn.execute('INSERT INTO budgets(period,used) VALUES(%s,7000)', (period,))
-    prompt = '¿En qué gasté más en octubre de 2026?'
+    prompt = 'Explícame la bola de nieve.'
     failed = client.post('/api/v1/ai/rag', headers=auth, json={'prompt': prompt})
     assert failed.status_code == 429, failed.text
     body = failed.json()
@@ -87,6 +87,8 @@ def test_shared_limit_returns_recoverable_reference_and_retry_preserves_conversa
 
 
 def test_readable_chat_keeps_human_sources_and_full_tool_history(client, auth, monkeypatch):
+    # Exercise provider-text presentation independently of the exact ranking shortcut.
+    monkeypatch.setattr(ai, 'spending_answer', lambda *_: None)
     monkeypatch.setenv('GROQ_API_KEY', 'stub-never-sent')
     monkeypatch.setattr(advisor, 'today', lambda: date(2026, 11, 8))
     def complete(payload):

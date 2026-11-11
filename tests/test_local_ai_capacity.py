@@ -82,7 +82,7 @@ def test_daily_limit_has_guatemala_reset_and_typed_retry(client,auth,monkeypatch
     setup(monkeypatch)
     monkeypatch.setenv('GROQ_API_KEY','stub-never-sent')
     with db() as conn: conn.execute("INSERT INTO budgets(period,used) VALUES('day:2026-11-08',100000)")
-    r=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'¿En qué gasté más en octubre de 2026?'})
+    r=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'Explícame la bola de nieve.'})
     assert r.status_code==429,r.text
     body=r.json()
     assert body['limit_kind']=='day' and body['retry_after']==27270
@@ -128,3 +128,23 @@ def test_core_fallback_retains_retrieved_guidance_and_external_rules(client,auth
     r=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'Explícame la bola de nieve.'})
     assert r.status_code==200,r.text
     assert len(seen)==1 and ai.estimate_payload(seen[0])<=6500
+
+
+def test_exact_ranking_with_exhausted_quotas_uses_fresh_own_facts_without_provider(client,auth,monkeypatch):
+    setup(monkeypatch)
+    with db() as conn:
+        conn.execute('UPDATE users SET tokens_used=token_limit WHERE id=2')
+        conn.execute("INSERT INTO budgets(period,used) VALUES('day:2026-11-08',100000)")
+        before=one(conn,'SELECT tokens_used,tokens_reserved FROM users WHERE id=2')
+    result=client.post('/api/v1/ai/rag',headers=auth,json={'prompt':'¿En qué gasté más en octubre de 2026?'})
+    assert result.status_code==200,result.text
+    assert 'Vivienda' in result.json()['response'] and 'Q1,500.00' in result.json()['response']
+    history=client.get('/api/v1/history/'+result.json()['id'],headers=auth).json()
+    assert history['calls']==[] and history['request']['status']=='success'
+    ranking=next(item for item in history['tools'] if item['name']=='spending_breakdown')
+    assert ranking['arguments']=={'start':'2026-10-01','end':'2026-10-31'}
+    assert ranking['result']['items'][0]['category']=='Vivienda'
+    with db() as conn:
+        assert one(conn,'SELECT tokens_used,tokens_reserved FROM users WHERE id=2')==before
+        assert one(conn,"SELECT used,reserved FROM budgets WHERE period='day:2026-11-08'")=={'used':100000,'reserved':0}
+        assert one(conn,'SELECT count(*) AS n FROM provider_calls')['n']==0
