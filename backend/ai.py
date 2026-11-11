@@ -19,7 +19,7 @@ from . import advisor, diagnosis, planning
 from .knowledge import instructions as agent_instructions
 from .conversation import build_context
 from .presentation import natural_text
-from .direct_answers import comparison_answer, MONTHS
+from .direct_answers import comparison_answer, spending_answer, MONTHS
 from .planning_answers import planning_answer
 from .goal_answers import goal_answer
 from .grounding import unsupported_amounts
@@ -671,7 +671,8 @@ def ask(service:str,body:Ask,user=Depends(current_user)):
             focused=external_system(context,prefetched,workflow)
             messages=[{'role':'system','content':focused,'_brief_content':focused},
                       {'role':'user','content':body.prompt}]
-        answer=(comparison_answer(body.prompt,prefetched,advisor.today())
+        answer=(spending_answer(body.prompt,prefetched,advisor.today())
+                or comparison_answer(body.prompt,prefetched,advisor.today())
                 or goal_answer(body.prompt,prefetched,context,advisor.today())
                 or budget_answer(body.prompt,prefetched,advisor.today()) or '')
         planning_reply=planning_answer(body.prompt,prefetched,advisor.today()) if not answer else None

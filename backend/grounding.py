@@ -33,16 +33,41 @@ PERCENT = re.compile(r'(?<![\w.,])(?P<number>[-+−]?\d+(?:[.,]\d+)?)\s*%')
 PROPOSAL = re.compile(r'\b(?:aporto|aportar|pongo|poner|ahorro|ahorrar)\s*(?P<number>\d+(?:[.,]\d{1,2})?)(?![\d.,])', re.I)
 
 
-def _rounded(value):
+def _exact_number(value):
     if isinstance(value, bool) or not isinstance(value, (str, int, float, Decimal)):
         return None
     if isinstance(value, str) and not RAW_NUMBER.fullmatch(value):
         return None
     try:
         number = Decimal(str(value))
-        return number.quantize(CENT, rounding=ROUND_HALF_UP) if number.is_finite() else None
+        return number if number.is_finite() else None
     except (InvalidOperation, ValueError):
         return None
+
+
+def _rounded(value):
+    number = _exact_number(value)
+    try:
+        return number.quantize(CENT, rounding=ROUND_HALF_UP) if number is not None else None
+    except InvalidOperation:
+        return None
+
+
+def _supported_percentage(value, original, allowed):
+    # Display precision belongs to the explicit percentage: 25% is a legitimate
+    # rounded presentation of 25.22%, while 24%, 26% and monetary rounding are not.
+    match = PERCENT.fullmatch(original)
+    if match is None or value is None:
+        return False
+    raw = match.group('number').replace(',', '.')
+    places = len(raw.partition('.')[2])
+    if places > 12:
+        return False
+    quantum = Decimal(1).scaleb(-places)
+    try:
+        return any(number.quantize(quantum, rounding=ROUND_HALF_UP) == value for number in allowed)
+    except InvalidOperation:
+        return False
 
 
 def _displayed(raw):
@@ -72,7 +97,7 @@ def _facts(value, money, percentages):
                 if number is not None:
                     money.add(number)
             elif key == 'annual_percent' or key.endswith('_percent'):
-                number = _rounded(child)
+                number = _exact_number(child)
                 if number is not None:
                     percentages.add(number)
             if isinstance(child, (Mapping, list, tuple)):
@@ -98,7 +123,7 @@ def _mentions(text):
         raw = match.group('number')
         if 'sign' in match.re.groupindex and match.group('sign'):
             raw = match.group('sign')+raw
-        yield kind, _displayed(raw), match.group(0).strip()
+        yield kind, (_exact_number(raw.replace(',', '.')) if kind == 'percent' else _displayed(raw)), match.group(0).strip()
 
 
 def _user_text(messages):
@@ -138,6 +163,7 @@ def unsupported_amounts(answer, tool_results, user_messages=()):
     unsupported = []
     for kind, value, original in _mentions(answer):
         allowed = money if kind == 'money' else percentages
-        if (value is None or value not in allowed) and original not in unsupported:
+        supported = _supported_percentage(value, original, allowed) if kind == 'percent' else value is not None and value in allowed
+        if not supported and original not in unsupported:
             unsupported.append(original)
     return unsupported
